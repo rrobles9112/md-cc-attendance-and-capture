@@ -3,7 +3,8 @@
 
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE EXTENSION IF NOT EXISTS pg_cron; -- requires cron extension enabled in Supabase dashboard
+-- pg_cron: must be enabled via Supabase Dashboard > Database > Extensions first.
+-- The schedule calls below use IF EXISTS guards so the migration won't fail if not yet enabled.
 
 -- Role enum
 CREATE TYPE app_role AS ENUM ('super_admin', 'leader', 'server');
@@ -124,10 +125,10 @@ INSERT INTO app_settings (key, value) VALUES ('dpo_contact_email', '');
 -- HELPER FUNCTIONS
 -- =============================================================================
 
--- Extract role from JWT custom claim
-CREATE OR REPLACE FUNCTION auth.user_role() RETURNS app_role AS $$
+-- Extract role from JWT custom claim (in public schema — auth schema is read-only on Cloud)
+CREATE OR REPLACE FUNCTION public.user_role() RETURNS app_role AS $$
   SELECT (auth.jwt()->>'role')::app_role;
-$$ LANGUAGE sql STABLE;
+$$ LANGUAGE sql STABLE SECURITY DEFINER;
 
 -- Auto-update updated_at on row modification
 CREATE OR REPLACE FUNCTION update_updated_at() RETURNS TRIGGER AS $$
@@ -205,186 +206,191 @@ CREATE TRIGGER audit_app_settings AFTER INSERT OR UPDATE OR DELETE ON app_settin
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY profiles_select ON profiles FOR SELECT USING (
-  id = auth.uid() OR auth.user_role() = 'super_admin'
+  id = auth.uid() OR public.user_role() = 'super_admin'
 );
 
 CREATE POLICY profiles_insert ON profiles FOR INSERT WITH CHECK (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 CREATE POLICY profiles_update ON profiles FOR UPDATE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 CREATE POLICY profiles_delete ON profiles FOR DELETE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 -- members: super_admin full; leader read+insert; server read
 ALTER TABLE members ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY members_select ON members FOR SELECT USING (
-  auth.user_role() IN ('super_admin','leader','server') AND deleted_at IS NULL
+  public.user_role() IN ('super_admin','leader','server') AND deleted_at IS NULL
 );
 
 CREATE POLICY members_insert ON members FOR INSERT WITH CHECK (
-  auth.user_role() IN ('super_admin','leader')
+  public.user_role() IN ('super_admin','leader')
 );
 
 CREATE POLICY members_update ON members FOR UPDATE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 CREATE POLICY members_delete ON members FOR DELETE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 -- social_media: super_admin full; leader read+insert; server read
 ALTER TABLE social_media ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY social_media_select ON social_media FOR SELECT USING (
-  auth.user_role() IN ('super_admin','leader','server') AND deleted_at IS NULL
+  public.user_role() IN ('super_admin','leader','server') AND deleted_at IS NULL
 );
 
 CREATE POLICY social_media_insert ON social_media FOR INSERT WITH CHECK (
-  auth.user_role() IN ('super_admin','leader')
+  public.user_role() IN ('super_admin','leader')
 );
 
 CREATE POLICY social_media_update ON social_media FOR UPDATE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 CREATE POLICY social_media_delete ON social_media FOR DELETE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 -- whatsapp_numbers: super_admin full; leader read+insert; server read
 ALTER TABLE whatsapp_numbers ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY whatsapp_numbers_select ON whatsapp_numbers FOR SELECT USING (
-  auth.user_role() IN ('super_admin','leader','server') AND deleted_at IS NULL
+  public.user_role() IN ('super_admin','leader','server') AND deleted_at IS NULL
 );
 
 CREATE POLICY whatsapp_numbers_insert ON whatsapp_numbers FOR INSERT WITH CHECK (
-  auth.user_role() IN ('super_admin','leader')
+  public.user_role() IN ('super_admin','leader')
 );
 
 CREATE POLICY whatsapp_numbers_update ON whatsapp_numbers FOR UPDATE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 CREATE POLICY whatsapp_numbers_delete ON whatsapp_numbers FOR DELETE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 -- sessions: super_admin full; leader read+insert; server read
 ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY sessions_select ON sessions FOR SELECT USING (
-  auth.user_role() IN ('super_admin','leader','server') AND deleted_at IS NULL
+  public.user_role() IN ('super_admin','leader','server') AND deleted_at IS NULL
 );
 
 CREATE POLICY sessions_insert ON sessions FOR INSERT WITH CHECK (
-  auth.user_role() IN ('super_admin','leader')
+  public.user_role() IN ('super_admin','leader')
 );
 
 CREATE POLICY sessions_update ON sessions FOR UPDATE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 CREATE POLICY sessions_delete ON sessions FOR DELETE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 -- attendance: all roles read+insert; super_admin can delete
 ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY attendance_select ON attendance FOR SELECT USING (
-  auth.user_role() IN ('super_admin','leader','server') AND deleted_at IS NULL
+  public.user_role() IN ('super_admin','leader','server') AND deleted_at IS NULL
 );
 
 CREATE POLICY attendance_insert ON attendance FOR INSERT WITH CHECK (
-  auth.user_role() IN ('super_admin','leader','server')
+  public.user_role() IN ('super_admin','leader','server')
 );
 
 CREATE POLICY attendance_update ON attendance FOR UPDATE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 CREATE POLICY attendance_delete ON attendance FOR DELETE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 -- consent_records: super_admin full; leader read+insert; server read
 ALTER TABLE consent_records ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY consent_records_select ON consent_records FOR SELECT USING (
-  auth.user_role() IN ('super_admin','leader','server')
+  public.user_role() IN ('super_admin','leader','server')
 );
 
 CREATE POLICY consent_records_insert ON consent_records FOR INSERT WITH CHECK (
-  auth.user_role() IN ('super_admin','leader')
+  public.user_role() IN ('super_admin','leader')
 );
 
 CREATE POLICY consent_records_update ON consent_records FOR UPDATE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 CREATE POLICY consent_records_delete ON consent_records FOR DELETE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 -- arco_requests: super_admin full; leader read+insert; server no access
 ALTER TABLE arco_requests ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY arco_requests_select ON arco_requests FOR SELECT USING (
-  auth.user_role() IN ('super_admin','leader')
+  public.user_role() IN ('super_admin','leader')
 );
 
 CREATE POLICY arco_requests_insert ON arco_requests FOR INSERT WITH CHECK (
-  auth.user_role() IN ('super_admin','leader')
+  public.user_role() IN ('super_admin','leader')
 );
 
 CREATE POLICY arco_requests_update ON arco_requests FOR UPDATE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 CREATE POLICY arco_requests_delete ON arco_requests FOR DELETE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 -- audit_log: super_admin read only; no direct writes (trigger-populated)
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY audit_log_select ON audit_log FOR SELECT USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 -- app_settings: super_admin full; others read
 ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY app_settings_select ON app_settings FOR SELECT USING (
-  auth.user_role() IN ('super_admin','leader','server')
+  public.user_role() IN ('super_admin','leader','server')
 );
 
 CREATE POLICY app_settings_update ON app_settings FOR UPDATE USING (
-  auth.user_role() = 'super_admin'
+  public.user_role() = 'super_admin'
 );
 
 -- =============================================================================
 -- PG_CRON: 90-day purge of soft-deleted records
 -- =============================================================================
+-- IMPORTANT: Enable the "cron" extension in Supabase Dashboard >
+-- Database > Extensions before these schedules will run.
+-- The DO block only schedules if pg_cron is available.
 
--- Runs daily at 03:00 UTC; hard-deletes rows where deleted_at is older than 90 days
--- audit_log retains tombstone via the DELETE trigger (fires before row removal)
-SELECT cron.schedule('purge-old-deletes', '0 3 * * *',
-  $$DELETE FROM members WHERE deleted_at < now() - interval '90 days'$$
-);
-
-SELECT cron.schedule('purge-old-deletes-sessions', '0 3 * * *',
-  $$DELETE FROM sessions WHERE deleted_at < now() - interval '90 days'$$
-);
-
-SELECT cron.schedule('purge-old-deletes-attendance', '0 3 * * *',
-  $$DELETE FROM attendance WHERE deleted_at < now() - interval '90 days'$$
-);
+DO $_$
+BEGIN
+  IF (SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'cron')) THEN
+    PERFORM cron.schedule('purge-old-deletes', '0 3 * * *',
+      $$DELETE FROM members WHERE deleted_at < now() - interval '90 days'$$
+    );
+    PERFORM cron.schedule('purge-old-deletes-sessions', '0 3 * * *',
+      $$DELETE FROM sessions WHERE deleted_at < now() - interval '90 days'$$
+    );
+    PERFORM cron.schedule('purge-old-deletes-attendance', '0 3 * * *',
+      $$DELETE FROM attendance WHERE deleted_at < now() - interval '90 days'$$
+    );
+  END IF;
+END
+$_$;
