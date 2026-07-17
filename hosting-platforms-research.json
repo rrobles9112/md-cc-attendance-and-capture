@@ -1,0 +1,427 @@
+{
+  "run_id": "trun_a76c88c2171c442bbfc512f20949800a",
+  "interaction_id": "trun_a76c88c2171c442bbfc512f20949800a",
+  "result_url": "https://platform.parallel.ai/play/deep-research/trun_a76c88c2171c442bbfc512f20949800a",
+  "status": "completed",
+  "output": {
+    "basis": [
+      {
+        "field": "answer",
+        "reasoning": "Completeness reasoning:\n- The fieldAnswer provides a comprehensive list of vendors (17 items) and includes product descriptions aligned with the user's criteria: hosting platforms for web/mobile apps, REST/GraphQL APIs, SQL storage, and support for React/Next.js/TypeScript frontend/backend frameworks. It also mentions executive summaries, comparison matrix, and vendor profiles, covering both BaaS and general PaaS categories. This aligns with the user query asking for at least 10 vendors similar to Firebase or Supabase.\n- The field_description asks for researching platforms that allow hosting web/mobile apps with REST/GraphQL APIs, SQL storage, and TS/React/Next.js support, with examples similar to Firebase or Supabase. The answer directly lists vendors and provides notes on SQL support, REST/GraphQL capabilities, and TS/React/Next.js compatibility. Therefore, the content appears to fulfill the requested requirements.\n- Potential caveats for completeness: while the answer is extensive, the user asked for at least 10 vendors; the answer lists 17, which is more than enough. There are some caveats noted in the text (caveats/open items) about vendor marketing content and SQL coverage, but these do not negate the overall completeness.\n\nConclusion: Completeness should be true since the field answer directly addresses the query with a broad, multi-vendor list and relevant contextual details.\n\nConfidence note:\n- The excerpts provided show mentions of several of the vendors (e.g., Encore, Appwrite, Nhost, Directus, PocketBase, Neon) that appear in the fieldAnswer, which supports parts of the content. However, not every vendor in the long list is clearly supported by the given excerpts. Therefore, while the answer is complete in scope, the excerpts alone do not fully substantiate every vendor claim.\n- Given this, I assign a cautious lower-bound confidence on excerpt-level support (not perfect coverage) while maintaining high completeness.",
+        "citations": [
+          {
+            "url": "https://encore.dev/articles/supabase-alternatives",
+            "excerpts": [
+              "Jul 4, 2026 \u2014 Looking for Supabase alternatives? Compare Encore, Firebase, Appwrite, Convex, PocketBase, and Neon with honest tradeoffs, code examples,"
+            ],
+            "title": "Best Supabase Alternatives in 2026: Full Comparison Guide"
+          },
+          {
+            "url": "https://www.reddit.com/r/Supabase/comments/13wtxuh/supabase_alternatives/",
+            "excerpts": [
+              "Directus and nHost are two others I have identified. I recommend Appwrite for self-hosting. It's the most similar alternative,"
+            ],
+            "title": "Supabase alternatives"
+          },
+          {
+            "url": "https://www.reddit.com/r/opensource/comments/1l3ebbi/is_there_a_better_clearer_alternative_to_supabase/",
+            "excerpts": [
+              "I saw pocketbase but can see it being limited if things grow. Should I be looking to do authentication and storage manually and utilise postgreSQL directly"
+            ],
+            "title": "Is there a better clearer alternative to supabase?"
+          },
+          {
+            "url": "https://dev.to/bytebase/supabase-alternatives-in-2025-1p8g",
+            "excerpts": [
+              "Mar 17, 2025 \u2014 Neon - Closest match Neon is arguably the closest alternative to Supabase, offering serverless PostgreSQL with branching capabilities."
+            ],
+            "title": "Supabase Alternatives \ud83d\udd04 in 2025 \ud83d\ude3c"
+          },
+          {
+            "url": "https://supabase.com/alternatives/supabase-vs-firebase",
+            "excerpts": [
+              "Aug 20, 2025 \u2014 Supabase is an open\u2010source alternative built on Postgres. Stack Overflow and Firebase Summit Active open\u2010source community with GitHub"
+            ],
+            "title": "Supabase vs Firebase"
+          },
+          {
+            "url": "https://www.reddit.com/r/nextjs/comments/1d9mfg0/best_postgresql_provider/",
+            "excerpts": [
+              "I'm working on a project using Next.js with PostgreSQL database. As I searched on the net, digitalocean seems good but the only thing I regret"
+            ],
+            "title": "Best PostgreSQL provider : r/nextjs"
+          },
+          {
+            "url": "https://www.reddit.com/r/nextjs/comments/1j7t35u/what_do_you_think_is_the_best_stack_combination/",
+            "excerpts": [
+              "There are so many options I can choose. What is the best combination you have thought or experienced."
+            ],
+            "title": "What do you think is the best stack combination for full- ..."
+          },
+          {
+            "url": "https://www.youtube.com/watch?v=ze1zrmoElrs&vl=en-US",
+            "excerpts": [
+              "Hosting Next.js the right way for you. How To Host Next.js In 2026 (VPS, Self-Hosting, Managed) A Step-by-Step Tutorial"
+            ],
+            "title": "How To Host Next.js In 2026 (VPS, Self-Hosting, Managed)"
+          },
+          {
+            "url": "https://vercel.com/kb/guide/nextjs-prisma-postgres",
+            "excerpts": [
+              "May 5, 2026 \u2014 Step 1: Create the starter app \u00b7 Step 2: Create a Prisma Postgres database \u00b7 Step 3: Install Prisma and configure Prisma Postgres \u00b7 Step 4: Load"
+            ],
+            "title": "Build a fullstack app with Next.js 16 and Prisma Postgres"
+          },
+          {
+            "url": "https://dev.to/showcase/neon/nextjs-tutorial-2025",
+            "excerpts": [
+              "Neon is a fully managed serverless PostgreSQL that offers unique features like database branching, bottomless storage, and autoscaling compute."
+            ],
+            "title": "Next.js Tutorial 2025 - Build a Full Stack Social App"
+          },
+          {
+            "url": "https://supertokens.com/blog/firebase-alternatives",
+            "excerpts": [
+              "Mar 8, 2025 \u2014 Supabase is an open-source backend platform that offers a Firebase-like developer experience\u2014but with a PostgreSQL database at its core. It's"
+            ],
+            "title": "4 Best Firebase Alternatives for Scalable App Development ..."
+          },
+          {
+            "url": "https://www.reddit.com/r/FlutterDev/comments/199l5nt/what_are_your_favorite_baas_and_databases/",
+            "excerpts": [
+              "I have been using Firebase for a long time and I'm generally a fan. It makes developing a dedicated backend obsolete because it combines a Database,"
+            ],
+            "title": "What are your favorite BaaS and Databases alternatives to ..."
+          },
+          {
+            "url": "https://www.reddit.com/r/selfhosted/comments/qdigvy/supabase_the_open_source_firebase_alternative/",
+            "excerpts": [
+              "abase - the open source Firebase alternative. It doesn't replace every feature, but it uses a relational database instead of a non-relational"
+            ],
+            "title": "Supabase - the open source Firebase alternative (using ..."
+          },
+          {
+            "url": "https://blog.back4app.com/backend-as-a-service-firebase/",
+            "excerpts": [
+              "Supabase positions itself as an open-source Firebase alternative powered by PostgreSQL. It is an excellent choice for developers who want a pure SQL database."
+            ],
+            "title": "Firebase BaaS - Backend as a Service: Guide & Alternatives"
+          },
+          {
+            "url": "https://www.facebook.com/groups/280569894066055/posts/707032438086463/",
+            "excerpts": [
+              "which database do you work more on? firebase or supabase?"
+            ],
+            "title": "Which database is preferred, Firebase or Supabase?"
+          },
+          {
+            "url": "https://www.reddit.com/r/react/comments/1i9lfvn/what_backenddatabase_stack_you_would_recommend/",
+            "excerpts": [
+              "I am a React developer for 2 years. I think I'm ready to go farther on fullstack developer path. I had little experience with epxresjs and with supabase"
+            ],
+            "title": "What backend/database stack you would recommend for ..."
+          },
+          {
+            "url": "https://gist.github.com/PARC6502/ee4db400a05e6eb6d0981bb8cd4e4c1c",
+            "excerpts": [
+              "Designed explicitly as an open source Firebase alternative Typescript based Docker support Full Postgres database with Realtime subscriptions. Cross-platform"
+            ],
+            "title": "List of open source, self hosted BaaS - Backend as a service"
+          },
+          {
+            "url": "https://encore.dev/articles/backend-as-a-service",
+            "excerpts": [
+              "May 3, 2026 \u2014 Backend as a Service (BaaS) is a cloud model where the provider gives you a complete backend behind a client SDK: authentication, database,"
+            ],
+            "title": "Backend as a Service (BaaS) in 2026: Providers, Tradeoffs ..."
+          },
+          {
+            "url": "https://blog.back4app.com/baas-providers/",
+            "excerpts": [
+              "Nhost is a modern, open-source Backend as a Service (BaaS) platform built around PostgreSQL and GraphQL. It provides a fully managed backend"
+            ],
+            "title": "Best Backend as a Service (BaaS) Providers in 2026"
+          },
+          {
+            "url": "https://www.npmjs.com/search?q=keywords:backend-as-a-service",
+            "excerpts": [
+              "Official JavaScript/TypeScript SDK for HydrousDB \u2014 the backend-as-a-service platform for records, auth, storage, and analytics. ... Official JavaScript/TypeScript"
+            ],
+            "title": "keywords:backend-as-a-service"
+          },
+          {
+            "url": "https://www.reddit.com/r/nextjs/comments/r5g6xn/where_should_i_deploy_a_nextjs_postgresql_project/",
+            "excerpts": [
+              "I'm currently leaning towards deploying both the frontend and backend on Heroku, but I want to see if there are any better alternatives or if there is"
+            ],
+            "title": "Where should I deploy a Next.js + PostgreSQL project?"
+          },
+          {
+            "url": "https://graphql.org/",
+            "excerpts": [
+              "GraphQL is an open\u2011source query language for APIs and a server\u2011side runtime. It provides a strongly\u2011typed schema to define relationships between data, making"
+            ],
+            "title": "GraphQL | The query language for modern APIs"
+          },
+          {
+            "url": "https://railway.com/deploy/nextjs-boilerplate",
+            "excerpts": [
+              "Sep 11, 2025 \u2014 Deploying this Next.js Boilerplate on Railway provides instant production deployment with managed PostgreSQL, automatic SSL certificates, and"
+            ],
+            "title": "Deploy Next.js Boilerplate"
+          },
+          {
+            "url": "https://northflank.com/blog/cloud-application-hosting-platforms",
+            "excerpts": [
+              "Aug 28, 2025 \u2014 Best cloud application hosting platforms for 2026. Compare Northflank, AWS, Heroku & more options."
+            ],
+            "title": "Best 6 cloud application hosting platforms for 2026 | Blog"
+          },
+          {
+            "url": "https://render.com/docs/postgresql",
+            "excerpts": [
+              "Render Postgres deploy fully managed, enterprise-grade databases that scale to any workload. Create a database view pricing."
+            ],
+            "title": "Render Postgres"
+          },
+          {
+            "url": "https://jaygould.co.uk/2019-04-04-nextjs-typescript-jwt-postgres-starter/",
+            "excerpts": [
+              "4 apr 2019 \u2014 How I made my Next.js starter, written in Typescript, JWT authentication and a Sequelize Postgres DB. A great project to learn a modern web"
+            ],
+            "title": "Creating my simple Next.js, Typescript, JWT and PostgreSQL ..."
+          },
+          {
+            "url": "https://render.com/docs/postgresql-creating-connecting",
+            "excerpts": [
+              "Learn how to store state in a fully managed PostgreSQL database on Render with this quickstart guide."
+            ],
+            "title": "Create and Connect to Render Postgres"
+          },
+          {
+            "url": "https://www.reddit.com/r/nextjs/comments/1qs4eou/any_downsides_to_hosting_nextjs_on_render/",
+            "excerpts": [
+              "A huge benefit of hosting your nextjs app on render alongside your rails app is that they will be on the same virtual Network, meaning requests"
+            ],
+            "title": "Any downsides to hosting Next.js on Render? : r/nextjs"
+          },
+          {
+            "url": "https://kuberns.com/blogs/render-postgres-pricing-setup-limits/",
+            "excerpts": [
+              "Apr 29, 2026 \u2014 You get a purpose-built managed Postgres with connection pooling built in and a permanent free tier, paired with AI-managed compute for your app"
+            ],
+            "title": "Render Postgres 2026: Pricing, Limits & Alternatives"
+          },
+          {
+            "url": "https://docs.railway.app/guides/postgresql",
+            "excerpts": [
+              "TypeScript Next.js. The Railway PostgreSQL database template allows you to provision and connect to a PostgreSQL database with zero configuration."
+            ],
+            "title": "PostgreSQL | Railway Docs"
+          },
+          {
+            "url": "https://docs.railway.com/guides/nextjs",
+            "excerpts": [
+              "18 hours ago \u2014 This guide covers how to deploy a Next.js app to Railway and connect it to a Postgres database: One-click deploy from a template."
+            ],
+            "title": "Deploy a Next.js App with Postgres | Railway Guides"
+          },
+          {
+            "url": "https://docs.railway.com/databases/postgresql",
+            "excerpts": [
+              "The Railway PostgreSQL database template allows you to provision and connect to a PostgreSQL database with zero configuration."
+            ],
+            "title": "PostgreSQL | Railway Docs"
+          },
+          {
+            "url": "https://dev.to/hannliao/how-to-deploy-postgresql-database-to-railway-7l4",
+            "excerpts": [
+              "Oct 30, 2024 \u2014 From the Railway dashboard, select New and Deploy from GitHub repo. Select your project, click Deploy Now, and wait for deployment to complete."
+            ],
+            "title": "How to deploy PostgreSQL database to Railway"
+          },
+          {
+            "url": "https://makerkit.dev/docs/nextjs-drizzle/going-to-production/railway",
+            "excerpts": [
+              "Step 1: Create a New Railway Project \u00b7 Step 2: Add a PostgreSQL Database \u00b7 Step 3: Add S3-Compatible Storage \u00b7 Step 4: Configure Environment Variables \u00b7 Step 5: Run"
+            ],
+            "title": "Next.js Drizzle - Deploy SaaS kit to Railway"
+          },
+          {
+            "url": "https://aws.amazon.com/amplify/",
+            "excerpts": [
+              "Accelerate your full-stack web and mobile app development with AWS Amplify. Easy to start, easy to scale. No cloud expertise needed."
+            ],
+            "title": "Web and Mobile Apps - AWS Amplify"
+          },
+          {
+            "url": "https://aws.amazon.com/blogs/mobile/create-a-graphql-api-for-any-existing-mysql-and-postgresql-database/",
+            "excerpts": [
+              "Nov 27, 2023 \u2014 Step 1 \u2013 Store Database Credentials Securely in Systems Manager \u00b7 Step 2 \u2013 Set up a new AWS CDK Project and install the Amplify GraphQL Construct."
+            ],
+            "title": "Create a GraphQL API for any existing MySQL and ..."
+          },
+          {
+            "url": "https://aws.amazon.com/blogs/aws/new-for-aws-amplify-query-mysql-and-postgresql-database-for-aws-cdk/",
+            "excerpts": [
+              "Dec 12, 2023 \u2014 You can now use @model types of Amplify GraphQL APIs for both relational database and DynamoDB data sources. Relational database information is"
+            ],
+            "title": "Query MySQL and PostgreSQL database for AWS CDK"
+          },
+          {
+            "url": "https://www.reddit.com/r/aws/comments/1djuytm/fullstack_typescript_reintroducing_aws_amplify/",
+            "excerpts": [
+              "Third concern is the choice of AppSync and GraphQL. instance of Postgresql with the ease of `/amplify/data/resource.ts`?"
+            ],
+            "title": "Fullstack TypeScript: Reintroducing AWS Amplify"
+          },
+          {
+            "url": "https://docs.amplify.aws/gen1/javascript/tools/console/",
+            "excerpts": [
+              "AWS Amplify Studio is a visual development environment for building fullstack web and mobile apps. Studio builds on existing backend building capabilities"
+            ],
+            "title": "Studio - JavaScript - AWS Amplify Gen 1 Documentation"
+          },
+          {
+            "url": "https://hasura.io/graphql/database/postgresql",
+            "excerpts": [
+              "Build high-quality GraphQL APIs on PostgreSQL, instantly. Connect to a new or existing PostgreSQL database and get standardized, highly composable GraphQL APIs."
+            ],
+            "title": "Create GraphQL APIs on PostgreSQL in 2 minutes"
+          },
+          {
+            "url": "https://www.youtube.com/watch?v=X3w-LgZUTRY",
+            "excerpts": [
+              "In this tutorial, I am gonna take you through offline and online demos of Hasura with GraphQL and Postgres Database \u2026 and REST API Generator |"
+            ],
+            "title": "Hasura GraphQL and REST API Generator | Low Code ..."
+          },
+          {
+            "url": "https://hasura.io/docs/2.0/databases/postgres/index/",
+            "excerpts": [
+              "Hasura enables connecting to a Postgres and Postgres compatible databases to automatically build an rich GraphQL API based on the schema."
+            ],
+            "title": "Postgres & Compatible Databases | Hasura GraphQL Docs"
+          },
+          {
+            "url": "https://dev.to/adron/setup-postgres-and-graphql-api-with-hasura-on-azure-4mne",
+            "excerpts": [
+              "Sep 9, 2020 \u2014 Setup Postgres, and GraphQL API with Hasura on Azure. This is basically the Postgres connection string that Hasura will need to make a"
+            ],
+            "title": "Setup Postgres, and GraphQL API with Hasura on Azure"
+          },
+          {
+            "url": "https://github.com/hasura/graphql-engine",
+            "excerpts": [
+              "Blazing fast, instant realtime GraphQL APIs on all your data with fine grained access control, also trigger webhooks on database events."
+            ],
+            "title": "Hasura GraphQL Engine"
+          },
+          {
+            "url": "https://learn.microsoft.com/en-us/azure/static-web-apps/database-overview",
+            "excerpts": [
+              "Mar 14, 2023 \u2014 The Azure Static Web Apps database connection feature allows you to access a database from your static web app without writing custom server-side code."
+            ],
+            "title": "Connecting to a database with Azure Static Web Apps"
+          },
+          {
+            "url": "https://learn.microsoft.com/en-us/azure/app-service/app-service-web-tutorial-dotnet-sqldatabase",
+            "excerpts": [
+              "Jun 26, 2025 \u2014 Azure App Service provides a highly scalable, self-patching web hosting service. This tutorial shows you how to deploy a data-driven ASP."
+            ],
+            "title": "Tutorial: ASP.NET app with Azure SQL Database"
+          },
+          {
+            "url": "https://www.reddit.com/r/AZURE/comments/1ninuco/azure_static_web_app_database_connections_will_be/",
+            "excerpts": [
+              "Hello all. I created a static web app in August following Microsoft's documentation, which showed how to use the database connections (preview) to connect"
+            ],
+            "title": "Azure static web app database connections will be retired ..."
+          },
+          {
+            "url": "https://www.pulumi.com/registry/packages/azure-native/how-to-guides/azure-ts-appservice/",
+            "excerpts": [
+              "Starting point for building web application hosted in Azure App Service. Provisions Azure SQL Database and Azure Application Insights to be used in combination"
+            ],
+            "title": "Azure App Service with SQL Database and Application ..."
+          },
+          {
+            "url": "https://dev.to/promisee_ay/deploying-an-aspnet-core-web-api-to-azure-with-app-service-and-azure-sql-database-4md",
+            "excerpts": [
+              "Mar 25, 2026 \u2014 This article focuses on Microsoft Azure and walks you through deploying a real-world ASP.NET Core Web API using two core resources, Azure App"
+            ],
+            "title": "Deploying an ASP.NET Core Web API to Azure with App ..."
+          },
+          {
+            "url": "https://vercel.com/templates/next.js/vercel-with-neon-postgres",
+            "excerpts": [
+              "A minimal template for building full-stack React applications using Next.js, Vercel, and Neon, shipping with Tailwind CSS, Shadcn UI and better-auth."
+            ],
+            "title": "Vercel with Neon Postgres"
+          },
+          {
+            "url": "https://www.reddit.com/r/nextjs/comments/17dyk42/first_deploy_on_vercel_where_to_host_my/",
+            "excerpts": [
+              "I am about the deploy my first Next.js app on Vercel. User files will be hosted on AWS S3, and my plan was to use AWS RDS for my PostgreSQL database."
+            ],
+            "title": "First deploy on Vercel: where to host my PostgreSQL ..."
+          },
+          {
+            "url": "https://vercel.com/templates/next.js/postgres-starter",
+            "excerpts": [
+              "Simple Next.js template that uses a Postgres database. Clone and Deploy. Next.js template that a Postgres database and Kysely as the query builder."
+            ],
+            "title": "Postgres Next.js Starter"
+          },
+          {
+            "url": "https://vercel.com/marketplace/neon",
+            "excerpts": [
+              "By integrating Neon with Vercel, you can deploy a fully managed Postgres database in seconds with features like database branching, autoscaling, scale-to-zero."
+            ],
+            "title": "Neon for Vercel"
+          },
+          {
+            "url": "https://www.reddit.com/r/nextjs/comments/1mi2a8x/tech_stack_that_i_use_as_a_solo_developer/",
+            "excerpts": [
+              "Database: Convex This is the secret sauce. It's a real-time, serverless backend that completely replaces the need for a separate API layer. The"
+            ],
+            "title": "Tech stack that i use as a solo developer : r/nextjs"
+          },
+          {
+            "url": "https://www.convex.dev/",
+            "excerpts": [
+              "From database schemas to queries, from auth to APIs, express every part of your backend in pure TypeScript. Your backend code lives next to your app code,"
+            ],
+            "title": "Convex | The backend building blocks for your agents"
+          },
+          {
+            "url": "https://github.com/get-convex/convex-backend",
+            "excerpts": [
+              "Convex is the open-source reactive database designed to make life easy for web app developers, Fetch data and perform business logic"
+            ],
+            "title": "get-convex/convex-backend: The open-source reactive ..."
+          },
+          {
+            "url": "https://webrack.co.za/blog/convex-reactive-database-revolution",
+            "excerpts": [
+              "Jan 19, 2026 \u2014 Meet Convex\u2014the reactive database that's making developers rethink everything they know about backends. Your Database Schema Is TypeScript No"
+            ],
+            "title": "Convex in 2026: How Reactive Databases Are ..."
+          },
+          {
+            "url": "https://www.producthunt.com/products/convex",
+            "excerpts": [
+              "Convex is the open source, reactive database where queries are TypeScript code running right in the database that keeps you focused on your product."
+            ],
+            "title": "Convex: The open-source reactive database for app ..."
+          }
+        ],
+        "confidence": "medium"
+      }
+    ],
+    "type": "text",
+    "beta_fields": null,
+    "mcp_tool_calls": null,
+    "content_file": "hosting-platforms-research.md"
+  }
+}

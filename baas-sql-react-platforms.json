@@ -1,0 +1,210 @@
+{
+  "run_id": "trun_a76c88c2171c442b9c7c4feaf28b142b",
+  "interaction_id": "trun_a76c88c2171c442b9c7c4feaf28b142b",
+  "result_url": "https://platform.parallel.ai/play/deep-research/trun_a76c88c2171c442b9c7c4feaf28b142b",
+  "status": "completed",
+  "output": {
+    "basis": [
+      {
+        "field": "answer",
+        "reasoning": "Assessing completeness: The user field asks for at least 10 vendors similar to Firebase or Supabase that support hosting web/mobile apps, REST/GraphQL APIs, and SQL databases, with React/Next.js/TypeScript frontend/backend compatibility. The provided field_answer lists 11 vendors with structured details on SQL, API capabilities, hosting, and TS/React/Next.js support, plus quick-start guidance and references. This covers all requested aspects (multiple vendors, SQL storage, REST/GraphQL APIs, web/mobile hosting, and TS/React/Next.js compatibility) and includes a comparative table and references. Therefore, completeness should be true.\\n\\nExcerpts analysis: The excerpts include sources referencing Supabase alternatives (Appwrite, Hasura, Neon, Xano, PocketBase, AWS Amplify, Railway, Neon, Backendless, Hasura, etc.) and discussions about hosting Next.js and PostgreSQL, REST/GraphQL, and SQL databases. These excerpts support the claim that such vendors exist and are discussed in similar contexts, though not every single detail for every vendor is present in the excerpts. Overall, the field answer is supported by the excerpts list.",
+        "citations": [
+          {
+            "url": "https://www.reddit.com/r/nextjs/comments/r5g6xn/where_should_i_deploy_a_nextjs_postgresql_project/",
+            "excerpts": [
+              "I'm currently leaning towards deploying both the frontend and backend on Heroku, but I want to see if there are any better alternatives or if there is"
+            ],
+            "title": "Where should I deploy a Next.js + PostgreSQL project?"
+          },
+          {
+            "url": "https://www.reddit.com/r/node/comments/1bluibr/resource_for_building_personal_fullstack_project/",
+            "excerpts": [
+              "Resource for building personal Full-Stack project with React, Node.js, SQL, and associated technologies."
+            ],
+            "title": "Resource for building personal Full-Stack project with ..."
+          },
+          {
+            "url": "https://nextjs.org/learn/dashboard-app/setting-up-your-database",
+            "excerpts": [
+              "In this chapter, you'll be setting up a PostgreSQL database from one of Vercel's marketplace integrations . Create and link your project to a Postgres database"
+            ],
+            "title": "App Router: Setting Up Your Database"
+          },
+          {
+            "url": "https://vercel.com/kb/guide/nextjs-prisma-postgres",
+            "excerpts": [
+              "May 5, 2026 \u2014 Step 1: Create the starter app \u00b7 Step 2: Create a Prisma Postgres database \u00b7 Step 3: Install Prisma and configure Prisma Postgres \u00b7 Step 4: Load"
+            ],
+            "title": "Build a fullstack app with Next.js 16 and Prisma Postgres"
+          },
+          {
+            "url": "https://makerkit.dev/blog/tutorials/best-hosting-nextjs",
+            "excerpts": [
+              "Jan 21, 2026 \u2014 Compare the best Next.js hosting providers in 2026. Vercel, Cloudflare, Railway, AWS, and self-hosting options with real costs, pros/cons,"
+            ],
+            "title": "10 Best Next.js Hosting Providers in 2026"
+          },
+          {
+            "url": "https://www.reddit.com/r/FlutterDev/comments/wqj4ki/alternatives_to_firebase_realtime_database/",
+            "excerpts": [
+              "I will build a chat application and therefore need a realtime communication from my backend to theapp. Since I don't use firebase as a backend, I would"
+            ],
+            "title": "Alternatives to Firebase Realtime Database? : r/FlutterDev"
+          },
+          {
+            "url": "https://vela.simplyblock.io/postgres-baas/",
+            "excerpts": [
+              "Use Vela as a Postgres BaaS layer for provisioning, branching, governance, and developer self-service in your own cloud boundary."
+            ],
+            "title": "Postgres BaaS for Private Cloud and BYOC - Vela - simplyblock"
+          },
+          {
+            "url": "https://xeladu.medium.com/i-tried-appwrite-supabase-and-firebase-databases-ad696d8dd04c",
+            "excerpts": [
+              "Supabase is an open-source alternative to Firebase. Supabase offers a PostgreSQL database. Supabase is far better in that category. Filling a"
+            ],
+            "title": "I tried Appwrite, Supabase, and Firebase Databases | by xeladu"
+          },
+          {
+            "url": "https://supertokens.com/blog/firebase-alternatives",
+            "excerpts": [
+              "Mar 8, 2025 \u2014 Top 4 alternatives: Supabase, Appwrite, AWS Amplify, and Backendless. write, and Backendless. 2. Data Flexibility (SQL vs NoSQL) Firebase uses"
+            ],
+            "title": "4 Best Firebase Alternatives for Scalable App Development ..."
+          },
+          {
+            "url": "https://www.back4app.com/firebase-alternatives",
+            "excerpts": [
+              "The top open-source alternatives are Back4App, Supabase, and Appwrite. Database Type SQL, NoSQL, or hybrid data model. The best Firebase alternatives in 2026"
+            ],
+            "title": "Best Firebase Alternatives in 2026 \u2014 Compared & Ranked"
+          },
+          {
+            "url": "https://encore.dev/articles/supabase-alternatives",
+            "excerpts": [
+              "Jul 4, 2026 \u2014 Looking for Supabase alternatives? Compare Encore, Firebase, Appwrite, Convex, PocketBase, and Neon with honest tradeoffs, code examples,"
+            ],
+            "title": "Best Supabase Alternatives in 2026: Full Comparison Guide"
+          },
+          {
+            "url": "https://www.reddit.com/r/Supabase/comments/13wtxuh/supabase_alternatives/",
+            "excerpts": [
+              "I recommend Appwrite for self-hosting. It's the most similar alternative, and has self-hosted functions similar to Supabase edge functions and"
+            ],
+            "title": "Supabase alternatives"
+          },
+          {
+            "url": "https://dev.to/bytebase/supabase-alternatives-in-2025-1p8g",
+            "excerpts": [
+              "Mar 17, 2025 \u2014 Neon - Closest match Neon is arguably the closest alternative to Supabase, offering serverless PostgreSQL with branching capabilities."
+            ],
+            "title": "Supabase Alternatives \ud83d\udd04 in 2025 \ud83d\ude3c"
+          },
+          {
+            "url": "https://blog.back4app.com/baas-providers/",
+            "excerpts": [
+              "This comprehensive backend as a service (BaaS) platform comparison reviews the best BaaS providers and leading cloud backend platforms in 2026."
+            ],
+            "title": "Best Backend as a Service (BaaS) Providers in 2026"
+          },
+          {
+            "url": "https://www.reddit.com/r/nextjs/comments/orjmkg/database_with_next_js/",
+            "excerpts": [
+              "Wondering what's your advice on hosting these, let's say NextJS frontend and Express or Fastify API with MongoDB or PostgreSQL database."
+            ],
+            "title": "Database with Next js : r/nextjs"
+          },
+          {
+            "url": "https://dev.to/hackmamba/how-to-choose-the-right-backend-as-a-service-baas-provider-for-your-project-2djd",
+            "excerpts": [
+              "Sep 13, 2023 \u2014 This article provides a comprehensive overview of BaaS, including its functionality, popular providers, advantages and drawbacks, business implications, and"
+            ],
+            "title": "How to Choose the Right Backend as a Service (BaaS) ..."
+          },
+          {
+            "url": "https://rockstardeveloperuniversity.com/best-backend-as-a-service-platforms/",
+            "excerpts": [
+              "Jun 25, 2026 \u2014 12 Best Backend as a Service Platforms for Developers in 2026 \u00b7 1. Supabase \u00b7 2. Firebase \u00b7 3. Appwrite \u00b7 4. Convex \u00b7 5. AWS Amplify \u00b7 6. PocketBase."
+            ],
+            "title": "12 Best Backend as a Service Platforms (2026)"
+          },
+          {
+            "url": "https://docs.nhost.io",
+            "excerpts": [],
+            "title": "Nhost Backend Platform Documentation | Nhost Docs"
+          },
+          {
+            "url": "https://appwrite.io/docs",
+            "excerpts": [],
+            "title": "Docs - Appwrite"
+          },
+          {
+            "url": "https://supabase.com/docs",
+            "excerpts": [],
+            "title": "Supabase Docs"
+          },
+          {
+            "url": "https://hasura.io/docs",
+            "excerpts": [],
+            "title": "Hasura DDN Documentation | Hasura DDN Docs"
+          },
+          {
+            "url": "https://supabase.com",
+            "excerpts": [],
+            "title": "Supabase"
+          },
+          {
+            "url": "https://appwrite.io",
+            "excerpts": [],
+            "title": "Appwrite - Build faster and scale bigger than ever"
+          },
+          {
+            "url": "https://nhost.io",
+            "excerpts": [],
+            "title": "Postgres Backend to Build, Deploy & Scale | Nhost"
+          },
+          {
+            "url": "https://hasura.io",
+            "excerpts": [],
+            "title": "Hasura: Creator of PromptQL, Data Delivery Network & GraphQL Engine"
+          },
+          {
+            "url": "https://xano.com",
+            "excerpts": [],
+            "title": "The Scalable No-Code Backend: Xano"
+          },
+          {
+            "url": "https://aws.amazon.com/amplify/",
+            "excerpts": [],
+            "title": "Full Stack Development - Web and Mobile Apps - AWS Amplify"
+          },
+          {
+            "url": "https://neon.tech",
+            "excerpts": [],
+            "title": "Neon \u2014 Postgres backends for apps and agents"
+          },
+          {
+            "url": "https://pocketbase.io",
+            "excerpts": [],
+            "title": "PocketBase - Open Source backend in 1 file"
+          },
+          {
+            "url": "https://firebase.google.com/products/data-connect",
+            "excerpts": [],
+            "title": "Firebase SQL Connect | Build realtime, secure apps on PostgreSQL."
+          },
+          {
+            "url": "https://railway.app",
+            "excerpts": [],
+            "title": "Railway | The all-in-one intelligent cloud provider"
+          }
+        ],
+        "confidence": "high"
+      }
+    ],
+    "type": "text",
+    "beta_fields": null,
+    "mcp_tool_calls": null,
+    "content_file": "baas-sql-react-platforms.md"
+  }
+}

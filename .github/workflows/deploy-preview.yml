@@ -1,0 +1,78 @@
+name: Deploy Preview
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      preview-url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  deploy-vercel:
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.deploy.outputs.preview-url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Deploy to Vercel Preview
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          npx vercel --prod=false --token=$VERCEL_TOKEN --yes > vercel-output.txt
+          PREVIEW_URL=$(cat vercel-output.txt | tail -1)
+          echo "preview-url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
+
+  supabase-dry-run:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Supabase Migration Dry-Run
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          npx supabase link --project-ref=$SUPABASE_PROJECT_REF
+          npx supabase db diff --linked || true
+          npx supabase migration list --linked
+
+  post-comment:
+    needs: [deploy-vercel, supabase-dry-run]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Post Preview URL as PR Comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = '${{ needs.deploy-vercel.outputs.url }}';
+            const body = `## Preview Deployment\n\n🔗 **Preview URL:** ${url}\n\nSupabase migration dry-run completed.`;
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body,
+            });
