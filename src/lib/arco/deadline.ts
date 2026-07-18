@@ -7,33 +7,35 @@ const DEADLINE_BUSINESS_DAYS: Record<ARCOType, number> = {
   opposition: 15,
 }
 
-// Colombian holidays — static list for 2026 (future enhancement: dynamic calendar)
-// TODO: Integrate a holiday API or database for automatic year updates
+// Colombian holidays — observed dates for 2026 (future enhancement: dynamic calendar).
+// Per Law 51 of 1983, religious/civic holidays that do not fall on Monday are moved to the
+// following Monday ("puente festivo"). Fixed (non-movable) holidays are:
+// Año Nuevo (Jan 1), Día del Trabajo (May 1), Independencia (Jul 20),
+// Batalla de Boyacá (Aug 7), Inmaculada Concepción (Dec 8), Navidad (Dec 25).
+// TODO: Integrate a holiday API or database for automatic year updates.
 const COLOMBIAN_HOLIDAYS_2026: string[] = [
-  '2026-01-01', // Año Nuevo
-  '2026-01-06', // Reyes Magos
-  '2026-03-23', // San José
+  '2026-01-01', // Año Nuevo (fixed)
+  '2026-01-12', // Reyes Magos (observed; moved from Jan 6, Tue)
+  '2026-03-23', // San José (observed; moved from Mar 19, Thu)
   '2026-04-02', // Jueves Santo
   '2026-04-03', // Viernes Santo
-  '2026-04-26', // Día del Trabajo (observado)
-  '2026-05-01', // Día del Trabajo
-  '2026-05-18', // Ascensión
-  '2026-06-08', // Corpus Christi
-  '2026-06-15', // Sagrado Corazón
-  '2026-06-29', // San Pedro y San Pablo
-  '2026-07-20', // Independencia
-  '2026-08-07', // Batalla de Boyacá
-  '2026-08-17', // Asunción (observado)
-  '2026-10-12', // Día de la Raza
-  '2026-11-01', // Todos los Santos
-  '2026-11-11', // Independencia de Cartagena
-  '2026-11-25', // Inmaculada Concepción (observado)
-  '2026-12-08', // Inmaculada Concepción
-  '2026-12-25', // Navidad
+  '2026-05-01', // Día del Trabajo (fixed)
+  '2026-05-18', // Ascensión (observed; moved from May 14, Thu)
+  '2026-06-08', // Corpus Christi (observed; moved from Jun 4, Thu)
+  '2026-06-15', // Sagrado Corazón (observed; moved from Jun 12, Fri)
+  '2026-06-29', // San Pedro y San Pablo (Monday)
+  '2026-07-20', // Independencia (fixed)
+  '2026-08-07', // Batalla de Boyacá (fixed)
+  '2026-08-17', // Asunción (observed; moved from Aug 15, Sat)
+  '2026-10-12', // Día de la Raza (Monday)
+  '2026-11-02', // Todos los Santos (observed; moved from Nov 1, Sun)
+  '2026-11-16', // Independencia de Cartagena (observed; moved from Nov 11, Wed)
+  '2026-12-08', // Inmaculada Concepción (fixed)
+  '2026-12-25', // Navidad (fixed)
 ]
 
 function isWeekend(date: Date): boolean {
-  const day = date.getDay()
+  const day = date.getUTCDay()
   return day === 0 || day === 6
 }
 
@@ -47,7 +49,7 @@ function addBusinessDays(startDate: Date, days: number): Date {
   let added = 0
 
   while (added < days) {
-    result.setDate(result.getDate() + 1)
+    result.setUTCDate(result.getUTCDate() + 1)
     if (!isWeekend(result) && !isHoliday(result)) {
       added++
     }
@@ -66,14 +68,15 @@ export function isOverdue(deadline: Date): boolean {
 }
 
 export function getBusinessDaysRemaining(deadline: Date): number {
-  const today = new Date()
-  if (today >= deadline) return 0
+  const now = new Date()
+  const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  if (todayUtc >= deadline) return 0
 
   let count = 0
-  const current = new Date(today)
+  const current = new Date(todayUtc)
 
   while (current < deadline) {
-    current.setDate(current.getDate() + 1)
+    current.setUTCDate(current.getUTCDate() + 1)
     if (!isWeekend(current) && !isHoliday(current)) {
       count++
     }

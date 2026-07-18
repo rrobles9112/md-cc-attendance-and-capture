@@ -6,9 +6,9 @@ describe('calculateDeadline', () => {
     const requestDate = new Date('2026-07-17T00:00:00Z')
     const deadline = calculateDeadline(requestDate, 'access')
     const deadlineStr = deadline.toISOString().split('T')[0]
-    // 10 business days from Jul 17 — skips weekends
-    expect(deadlineStr).toBe('2026-07-31')
-    // Deadline should be at least 14 calendar days after start (10 business + 4 weekend)
+    // 10 business days from Jul 17 — skips weekends and Jul 20 (Independencia)
+    expect(deadlineStr).toBe('2026-08-03')
+    // Deadline should be at least 14 calendar days after start (10 business + 4 weekend + 1 holiday)
     const diffDays = (deadline.getTime() - requestDate.getTime()) / (1000 * 60 * 60 * 24)
     expect(diffDays).toBeGreaterThanOrEqual(13)
   })
@@ -62,6 +62,36 @@ describe('calculateDeadline', () => {
     // 10 business days should always be >= 10 calendar days
     const diffMs = deadline.getTime() - requestDate.getTime()
     expect(diffMs).toBeGreaterThan(10 * 24 * 60 * 60 * 1000)
+  })
+
+  it('skips movable holiday Reyes Magos (observed Jan 12, not Jan 6)', () => {
+    // Jan 8 2026 is Thursday; 10 business days must skip Jan 12 (Reyes Magos observed)
+    const requestDate = new Date('2026-01-08T00:00:00Z')
+    const deadline = calculateDeadline(requestDate, 'access')
+    const deadlineStr = deadline.toISOString().split('T')[0]
+    expect(deadlineStr).toBe('2026-01-23')
+  })
+
+  it('skips movable holiday Independencia de Cartagena (observed Nov 16, not Nov 11)', () => {
+    // Nov 12 2026 is Thursday; 10 business days must skip Nov 16 (Independencia de Cartagena observed)
+    const requestDate = new Date('2026-11-12T00:00:00Z')
+    const deadline = calculateDeadline(requestDate, 'access')
+    const deadlineStr = deadline.toISOString().split('T')[0]
+    expect(deadlineStr).toBe('2026-11-27')
+  })
+
+  it('does not treat spurious Apr 26 as a holiday (Día del Trabajo is fixed on May 1)', () => {
+    // Apr 24 2026 is Friday; 1 business day lands on Apr 27 (Mon). Apr 26 is NOT a holiday.
+    const requestDate = new Date('2026-04-24T00:00:00Z')
+    const deadline = calculateDeadline(requestDate, 'access')
+    const firstBusinessDay = new Date(requestDate)
+    let added = 0
+    while (added < 1) {
+      firstBusinessDay.setUTCDate(firstBusinessDay.getUTCDate() + 1)
+      const dow = firstBusinessDay.getUTCDay()
+      if (dow !== 0 && dow !== 6) added++
+    }
+    expect(firstBusinessDay.toISOString().split('T')[0]).toBe('2026-04-27')
   })
 })
 

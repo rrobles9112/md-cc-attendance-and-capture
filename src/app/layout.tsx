@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from "sonner";
 
@@ -6,8 +6,13 @@ export const metadata: Metadata = {
   title: "Asistencia y Captura",
   description: "Plataforma de asistencia y captura de miembros",
   manifest: "/manifest.json",
+};
+
+export const viewport: Viewport = {
   themeColor: "#1e293b",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({
