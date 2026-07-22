@@ -37,3 +37,7 @@ next-env.d.ts
 
 # supabase
 supabase/.temp
+.env*
+
+# IDE
+.idea/
