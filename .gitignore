@@ -6,6 +6,9 @@
 
 # testing
 /coverage
+/playwright-report/
+/test-results/
+supabase/.branches/
 
 # next.js
 /.next/
@@ -41,3 +44,5 @@ supabase/.temp
 
 # IDE
 .idea/
+# Local Pi runtime state
+.atl/

@@ -42,7 +42,7 @@ export default function DashboardLayout({
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) {
-      router.push('/login')
+      router.push('/')
       return
     }
     setUserName(session.user.email ?? 'Usuario')
@@ -54,14 +54,14 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (!loading && !role) {
-      router.push('/login')
+      router.push('/')
     }
   }, [loading, role, router])
 
   async function handleLogout() {
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.push('/login')
+    router.push('/')
   }
 
   if (loading || !role) {
