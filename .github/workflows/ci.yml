@@ -55,8 +55,32 @@ jobs:
       - run: npm ci
       - run: npx vitest run
 
+  db-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Start local Supabase and apply migrations + seed
+        run: |
+          supabase start --ignore-health-check
+          supabase db reset --yes
+      - name: Run SQL integration tests
+        run: |
+          DB_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+          for f in supabase/tests/*.sql; do
+            echo "==> Running $f"
+            psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$f"
+          done
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --no-backup || true
+
   build:
-    needs: [lint, typecheck, test]
+    needs: [lint, typecheck, test, db-integration]
     runs-on: ubuntu-latest
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
@@ -67,5 +91,11 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - name: Require public Supabase build vars
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
+            echo "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set as GitHub Actions variables."
+            exit 1
+          fi
       - run: npm ci
       - run: npm run build

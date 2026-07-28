@@ -20,6 +20,12 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - name: Require public Supabase build vars
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
+            echo "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set as GitHub Actions variables."
+            exit 1
+          fi
       - run: npm ci
       - run: npm run build
 
@@ -46,22 +52,32 @@ jobs:
           PREVIEW_URL=$(cat vercel-output.txt | tail -1)
           echo "preview-url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
 
-  supabase-dry-run:
+  supabase-migrate-validate:
     needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Supabase Migration Dry-Run
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Apply migrations on ephemeral local Supabase
+        run: |
+          # Hard fail on SQL errors — do not soft-swallow with || true
+          supabase start --ignore-health-check
+          supabase db reset --yes
+      - name: List linked remote migrations (informational)
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
-          npx supabase link --project-ref=$SUPABASE_PROJECT_REF
-          npx supabase db diff --linked || true
+          npx supabase link --project-ref="$SUPABASE_PROJECT_REF"
           npx supabase migration list --linked
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --no-backup || true
 
   post-comment:
-    needs: [deploy-vercel, supabase-dry-run]
+    needs: [deploy-vercel, supabase-migrate-validate]
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     permissions:
@@ -72,7 +88,7 @@ jobs:
         with:
           script: |
             const url = '${{ needs.deploy-vercel.outputs.url }}';
-            const body = `## Preview Deployment\n\n🔗 **Preview URL:** ${url}\n\nSupabase migration dry-run completed.`;
+            const body = `## Preview Deployment\n\n🔗 **Preview URL:** ${url}\n\nLocal Supabase migration apply validation completed (ephemeral \`db reset\`).`;
             github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,

@@ -3,16 +3,26 @@ name: Nightly
 on:
   schedule:
     - cron: '0 2 * * *'
+  workflow_dispatch:
 
 jobs:
   full-test:
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+      - name: Require public Supabase build vars
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
+            echo "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set as GitHub Actions variables."
+            exit 1
+          fi
       - run: npm ci
       - run: npm run lint
       - run: npx tsc --noEmit
@@ -21,22 +31,48 @@ jobs:
 
   lighthouse:
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+      - name: Require public Supabase build vars
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
+            echo "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set as GitHub Actions variables."
+            exit 1
+          fi
       - run: npm ci
       - run: npm run build
+      - name: Start Next.js server
+        run: |
+          npm run start -- --port 3000 &
+          echo $! > next-server.pid
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3000/ >/dev/null; then
+              echo "Server ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Server failed to become ready"
+          exit 1
       - name: Lighthouse PWA Audit
         uses: treosh/lighthouse-ci-action@v12
         with:
           uploadArtifacts: true
           configPath: '.lighthouserc.json'
           urls: |
-            http://localhost:3000
-            http://localhost:3000/login
+            http://127.0.0.1:3000/
+            http://127.0.0.1:3000/login
+      - name: Stop Next.js server
+        if: always()
+        run: |
+          if [ -f next-server.pid ]; then kill "$(cat next-server.pid)" || true; fi
 
   security-audit:
     runs-on: ubuntu-latest
@@ -47,9 +83,19 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: npm Audit
+      - name: npm Audit (high+)
         run: npm audit --audit-level=high
-        continue-on-error: true
+
+  e2e-smoke-note:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Document Playwright nightly skip
+        run: |
+          echo "Playwright role smoke requires local Supabase + seed.sql demo Auth."
+          echo "Not run in Actions nightly yet (no ephemeral Auth stack wired for e2e)."
+          echo "Run locally: supabase db reset && npm run test:e2e -- e2e/role-enforcement.spec.ts"
+          echo "Follow-up: task 6.7 in sdd/.../tasks.md"
 
   create-issue-on-failure:
     needs: [full-test, lighthouse, security-audit]

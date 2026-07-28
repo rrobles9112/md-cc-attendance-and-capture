@@ -8,6 +8,10 @@ max_rows = 1000
 port = 54322
 major_version = 15
 
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
 [studio]
 port = 54323
 

@@ -20,6 +20,12 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - name: Require public Supabase build vars
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
+            echo "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set as GitHub Actions variables."
+            exit 1
+          fi
       - run: npm ci
       - run: npm run lint
       - run: npx tsc --noEmit
@@ -36,6 +42,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
+          # db push applies migrations only — seed.sql is local-only (config.toml [db.seed])
           npx supabase link --project-ref=$SUPABASE_PROJECT_REF
           npx supabase db push --linked
 
