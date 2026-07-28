@@ -71,10 +71,13 @@ jobs:
       - name: Run SQL integration tests
         run: |
           DB_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
-          for f in supabase/tests/*.sql; do
-            echo "==> Running $f"
-            psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$f"
-          done
+          # Trigger / crypto tests as postgres (table owner)
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/audit_trigger.test.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/pgcrypto.test.sql
+          # RLS tests must run as non-superuser so policies are enforced
+          psql "$DB_URL" -v ON_ERROR_STOP=1 \
+            -c "SET ROLE authenticated" \
+            -f supabase/tests/rls.test.sql
       - name: Stop Supabase
         if: always()
         run: supabase stop --no-backup || true

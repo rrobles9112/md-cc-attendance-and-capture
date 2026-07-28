@@ -2,7 +2,7 @@
 -- Run with: supabase db test or psql -f supabase/tests/rls.test.sql
 -- Uses DO $$ blocks with RAISE ASSERTIONS
 --
--- Relies on migration 001_initial_schema.sql (demo seed section) for the three role users.
+-- Relies on supabase/seed.sql (via db reset) for the three role users.
 -- Creates ephemeral members/sessions for assertions and cleans those up only.
 
 DO $$
@@ -19,8 +19,11 @@ BEGIN
   SELECT id INTO server_id FROM auth.users WHERE email = 'test-server@test.com';
 
   IF super_admin_id IS NULL OR leader_id IS NULL OR server_id IS NULL THEN
-    RAISE EXCEPTION 'Seed users missing — run supabase db reset (migration 001) before RLS tests';
+    RAISE EXCEPTION 'Seed users missing — run supabase db reset (applies seed.sql) before RLS tests';
   END IF;
+
+  -- Elevate claim first so profile role alignment is allowed under RLS
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'super_admin')::text, true);
 
   -- Ensure roles match the proposal (seed should already have set these)
   UPDATE profiles SET role = 'super_admin', full_name = 'Test Super Admin', is_active = true
@@ -32,7 +35,6 @@ BEGIN
 
   -- Test 1: super_admin can INSERT members
   PERFORM set_config('request.jwt.claims', json_build_object('role', 'super_admin')::text, true);
-  PERFORM set_config('role', 'authenticated', true);
 
   INSERT INTO members (name, name_normalized, phone, email, consent_recorded, created_by)
   VALUES ('RLS Test Member', 'rls test member', '+573001110001', 'rls-test-member@test.com', true, super_admin_id)
