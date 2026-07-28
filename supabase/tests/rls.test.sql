@@ -4,42 +4,43 @@
 --
 -- Relies on supabase/seed.sql (via db reset) for the three role users.
 -- Creates ephemeral members/sessions for assertions and cleans those up only.
+-- Variable names use v_ prefix to avoid PL/pgSQL / column ambiguity.
 
 DO $$
 DECLARE
-  super_admin_id UUID;
-  leader_id UUID;
-  server_id UUID;
-  member_id UUID;
-  leader_member_id UUID;
-  session_id UUID;
+  v_super_admin_id UUID;
+  v_leader_id UUID;
+  v_server_id UUID;
+  v_member_id UUID;
+  v_leader_member_id UUID;
+  v_session_id UUID;
 BEGIN
   -- Deterministic IDs from supabase/seed.sql
-  super_admin_id := 'a0000000-0000-4000-8000-000000000001';
-  leader_id := 'a0000000-0000-4000-8000-000000000002';
-  server_id := 'a0000000-0000-4000-8000-000000000003';
+  v_super_admin_id := 'a0000000-0000-4000-8000-000000000001';
+  v_leader_id := 'a0000000-0000-4000-8000-000000000002';
+  v_server_id := 'a0000000-0000-4000-8000-000000000003';
 
   -- Need super_admin claim before reading/updating other profiles under RLS
   PERFORM set_config('request.jwt.claims', json_build_object('role', 'super_admin')::text, true);
 
-  IF NOT EXISTS (SELECT 1 FROM profiles WHERE id = super_admin_id) THEN
+  IF NOT EXISTS (SELECT 1 FROM profiles WHERE id = v_super_admin_id) THEN
     RAISE EXCEPTION 'Seed users missing — run supabase db reset (applies seed.sql) before RLS tests';
   END IF;
 
   -- Ensure roles match the proposal (seed should already have set these)
   UPDATE profiles SET role = 'super_admin', full_name = 'Test Super Admin', is_active = true
-  WHERE id = super_admin_id;
+  WHERE id = v_super_admin_id;
   UPDATE profiles SET role = 'leader', full_name = 'Test Leader', is_active = true
-  WHERE id = leader_id;
+  WHERE id = v_leader_id;
   UPDATE profiles SET role = 'server', full_name = 'Test Server', is_active = true
-  WHERE id = server_id;
+  WHERE id = v_server_id;
 
   -- Test 1: super_admin can INSERT members
   PERFORM set_config('request.jwt.claims', json_build_object('role', 'super_admin')::text, true);
 
   INSERT INTO members (name, name_normalized, phone, email, consent_recorded, created_by)
-  VALUES ('RLS Test Member', 'rls test member', '+573001110001', 'rls-test-member@test.com', true, super_admin_id)
-  RETURNING id INTO member_id;
+  VALUES ('RLS Test Member', 'rls test member', '+573001110001', 'rls-test-member@test.com', true, v_super_admin_id)
+  RETURNING id INTO v_member_id;
 
   RAISE NOTICE 'PASS: super_admin can INSERT members';
 
@@ -47,8 +48,8 @@ BEGIN
   PERFORM set_config('request.jwt.claims', json_build_object('role', 'leader')::text, true);
 
   INSERT INTO members (name, name_normalized, phone, email, consent_recorded, created_by)
-  VALUES ('RLS Leader Member', 'rls leader member', '+573001110002', 'rls-leader-member@test.com', true, leader_id)
-  RETURNING id INTO leader_member_id;
+  VALUES ('RLS Leader Member', 'rls leader member', '+573001110002', 'rls-leader-member@test.com', true, v_leader_id)
+  RETURNING id INTO v_leader_member_id;
 
   RAISE NOTICE 'PASS: leader can INSERT members';
 
@@ -57,7 +58,7 @@ BEGIN
 
   BEGIN
     INSERT INTO members (name, name_normalized, phone, email, consent_recorded, created_by)
-    VALUES ('RLS Server Member', 'rls server member', '+573001110003', 'rls-server-member@test.com', true, server_id);
+    VALUES ('RLS Server Member', 'rls server member', '+573001110003', 'rls-server-member@test.com', true, v_server_id);
     RAISE EXCEPTION 'FAIL: server should NOT be able to INSERT members';
   EXCEPTION
     WHEN insufficient_privilege THEN
@@ -75,7 +76,7 @@ BEGIN
   PERFORM set_config('request.jwt.claims', json_build_object('role', 'leader')::text, true);
 
   BEGIN
-    UPDATE members SET phone = '+573007777777' WHERE id = member_id;
+    UPDATE members SET phone = '+573007777777' WHERE id = v_member_id;
     IF FOUND THEN
       RAISE EXCEPTION 'FAIL: leader should NOT be able to UPDATE members';
     END IF;
@@ -92,7 +93,7 @@ BEGIN
 
   -- Test 5: leader CANNOT DELETE members
   BEGIN
-    DELETE FROM members WHERE id = member_id;
+    DELETE FROM members WHERE id = v_member_id;
     IF FOUND THEN
       RAISE EXCEPTION 'FAIL: leader should NOT be able to DELETE members';
     END IF;
@@ -110,24 +111,25 @@ BEGIN
   -- Test 6: server can INSERT attendance
   PERFORM set_config('request.jwt.claims', json_build_object('role', 'super_admin')::text, true);
   INSERT INTO sessions (name, session_date, created_by)
-  VALUES ('RLS Test Session', '2026-07-17', super_admin_id)
-  RETURNING id INTO session_id;
+  VALUES ('RLS Test Session', '2026-07-17', v_super_admin_id)
+  RETURNING id INTO v_session_id;
 
   PERFORM set_config('request.jwt.claims', json_build_object('role', 'server')::text, true);
-  INSERT INTO attendance (member_id, session_id, marked_by) VALUES (member_id, session_id, server_id);
+  INSERT INTO attendance (member_id, session_id, marked_by)
+  VALUES (v_member_id, v_session_id, v_server_id);
 
   RAISE NOTICE 'PASS: server can INSERT attendance';
 
   -- Test 7: super_admin can UPDATE members
   PERFORM set_config('request.jwt.claims', json_build_object('role', 'super_admin')::text, true);
-  UPDATE members SET phone = '+573001111111' WHERE id = member_id;
+  UPDATE members SET phone = '+573001111111' WHERE id = v_member_id;
 
   RAISE NOTICE 'PASS: super_admin can UPDATE members';
 
   -- Cleanup ephemeral rows only — keep seeded auth users / sample data
-  DELETE FROM attendance a WHERE a.session_id = session_id;
-  DELETE FROM sessions s WHERE s.id = session_id;
-  DELETE FROM members m WHERE m.id IN (member_id, leader_member_id);
+  DELETE FROM attendance WHERE session_id = v_session_id;
+  DELETE FROM sessions WHERE id = v_session_id;
+  DELETE FROM members WHERE id IN (v_member_id, v_leader_member_id);
 
   RAISE NOTICE 'All RLS tests passed';
 END $$;
