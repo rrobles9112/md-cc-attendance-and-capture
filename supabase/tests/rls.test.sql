@@ -14,11 +14,12 @@ DECLARE
   leader_member_id UUID;
   session_id UUID;
 BEGIN
-  SELECT id INTO super_admin_id FROM auth.users WHERE email = 'test-superadmin@test.com';
-  SELECT id INTO leader_id FROM auth.users WHERE email = 'test-leader@test.com';
-  SELECT id INTO server_id FROM auth.users WHERE email = 'test-server@test.com';
+  -- Deterministic IDs from supabase/seed.sql
+  super_admin_id := 'a0000000-0000-4000-8000-000000000001';
+  leader_id := 'a0000000-0000-4000-8000-000000000002';
+  server_id := 'a0000000-0000-4000-8000-000000000003';
 
-  IF super_admin_id IS NULL OR leader_id IS NULL OR server_id IS NULL THEN
+  IF NOT EXISTS (SELECT 1 FROM profiles WHERE id = super_admin_id) THEN
     RAISE EXCEPTION 'Seed users missing — run supabase db reset (applies seed.sql) before RLS tests';
   END IF;
 
