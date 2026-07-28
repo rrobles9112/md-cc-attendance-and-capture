@@ -125,9 +125,9 @@ BEGIN
   RAISE NOTICE 'PASS: super_admin can UPDATE members';
 
   -- Cleanup ephemeral rows only — keep seeded auth users / sample data
-  DELETE FROM attendance WHERE session_id = session_id;
-  DELETE FROM sessions WHERE id = session_id;
-  DELETE FROM members WHERE id IN (member_id, leader_member_id);
+  DELETE FROM attendance a WHERE a.session_id = session_id;
+  DELETE FROM sessions s WHERE s.id = session_id;
+  DELETE FROM members m WHERE m.id IN (member_id, leader_member_id);
 
   RAISE NOTICE 'All RLS tests passed';
 END $$;
