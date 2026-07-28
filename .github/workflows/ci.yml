@@ -71,6 +71,9 @@ jobs:
       - name: Run SQL integration tests
         run: |
           DB_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+          echo "==> Verify demo seed users exist"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c \
+            "SELECT email FROM auth.users WHERE email LIKE 'test-%@test.com' ORDER BY email;"
           # Trigger / crypto tests as postgres (table owner)
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/audit_trigger.test.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/pgcrypto.test.sql
