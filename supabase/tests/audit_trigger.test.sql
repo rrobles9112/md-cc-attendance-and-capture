@@ -9,11 +9,13 @@ DECLARE
   audit_count_after INTEGER;
   last_audit RECORD;
 BEGIN
-  -- Setup: create test user
+  -- Setup: create test user (handle_new_user() auto-creates profiles as 'server')
   INSERT INTO auth.users (id, email) VALUES (gen_random_uuid(), 'audit-test@test.com')
   RETURNING id INTO test_user_id;
 
-  INSERT INTO profiles (id, full_name, role) VALUES (test_user_id, 'Audit Test', 'super_admin');
+  UPDATE profiles
+  SET full_name = 'Audit Test', role = 'super_admin', is_active = true
+  WHERE id = test_user_id;
 
   -- Set JWT context
   PERFORM set_config('request.jwt.claims', json_build_object('role', 'super_admin')::text, true);
