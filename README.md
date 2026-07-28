@@ -93,9 +93,9 @@ All dashboard routes require authentication — unauthenticated users are redire
 | `/export` | Data export | super_admin, leader | Client-side CSV/XLSX export (SheetJS) |
 | `/admin` | Admin panel | super_admin | Tabs: **users** (role management), **audit** (audit_log viewer), **arco** (ARCO request workflow), **settings** (DPO email etc.), **sync** (offline queue), **purge** (90-day soft-delete purge) |
 
-### Demo / Test Logins (from migrations)
+### Demo / Test Logins (local only)
 
-After `supabase db reset` (migration `001_initial_schema.sql` includes demo seed data), these accounts are available. Password for all: `test-password`
+After `supabase db reset`, demo data is loaded from `supabase/seed.sql` (see `supabase/config.toml` `[db.seed]`). Password for all: `test-password`
 
 | Email | Role | What to verify |
 |-------|------|----------------|
@@ -104,6 +104,8 @@ After `supabase db reset` (migration `001_initial_schema.sql` includes demo seed
 | `test-server@test.com` | server | Attendance only; no capture/admin |
 
 Sample domain data is also seeded: members (incl. minor + soft-deleted purge candidate), social/WhatsApp contacts, consent records, two prayer sessions with attendance, and ARCO requests.
+
+**Production note:** `supabase db push` applies migrations only — it does **not** run `seed.sql`. Migration `002_remove_demo_seed_accounts.sql` strips any deterministic demo accounts that may have been introduced by an earlier embedded seed in `001`.
 
 ### First Login & Admin Bootstrap (fresh signup)
 
@@ -181,10 +183,10 @@ npm run lint
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| `ci.yml` | PR to main | lint → typecheck → test → build |
-| `deploy-preview.yml` | PR to main | Build + Vercel preview + Supabase migration dry-run |
-| `deploy-production.yml` | Push to main | test → migrate → Vercel production deploy |
-| `nightly.yml` | 2am UTC daily | Full test suite + Lighthouse PWA audit + npm audit |
+| `ci.yml` | PR to main | lint → typecheck → Vitest → **local Supabase migrate + SQL tests** → build (fails if public Supabase vars missing) |
+| `deploy-preview.yml` | PR to main | Build + Vercel preview + **ephemeral `db reset` migration validation** (no soft-fail) |
+| `deploy-production.yml` | Push to main | test → `db push` migrations (no seed) → Vercel production |
+| `nightly.yml` | 2am UTC daily / manual | Full suite + Lighthouse (with `next start`) + npm audit high+ |
 
 ## RBAC Model
 

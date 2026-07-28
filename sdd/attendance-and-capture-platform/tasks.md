@@ -89,3 +89,16 @@ Chain strategy: stacked-to-main
 - [x] 5.2 `.env.example` — all required env vars with descriptions
 - [x] 5.3 `docs/vault-setup.md` — Supabase Vault pgcrypto key setup, secret rotation
 - [x] 5.4 `docs/deploy-runbook.md` — production deployment steps, rollback procedure, breach notification workflow
+
+## Phase 6: CI/CD Gap Closure (post-verdict)
+
+Closes gaps vs `specs/cicd-pipeline/spec.md` after migration consolidation and local-seed work:
+
+- [x] 6.1 Isolate demo seed from production migrate path — `supabase/seed.sql` + `config.toml` `[db.seed]`; migration `002_remove_demo_seed_accounts.sql` strips deterministic demo Auth users/sample rows on cloud `db push`
+- [x] 6.2 Harden PR DB validation — replace soft `db diff || true` with ephemeral local Supabase apply (`db reset`) that fails on SQL errors
+- [x] 6.3 Wire SQL integration tests into CI — run `supabase/tests/*.sql` against ephemeral DB after migrate (RLS, audit, pgcrypto)
+- [x] 6.4 Fix nightly Lighthouse — add `.lighthouserc.json`, start `next start` before audit; URLs include `/` and `/login`
+- [x] 6.5 Tighten nightly `npm audit` — fail on high+ (remove blanket `continue-on-error`) so failures surface via `create-issue-on-failure`
+- [x] 6.6 Fail-fast on missing `NEXT_PUBLIC_SUPABASE_*` build vars in CI/build jobs
+- [x] 6.7 Nightly Playwright smoke — documented skip until ephemeral Auth stack is wired for Actions (see `e2e-smoke-note` job)
+- [x] 6.8 Update README Module Access / Demo Logins for seed.sql vs production cleanup migration
