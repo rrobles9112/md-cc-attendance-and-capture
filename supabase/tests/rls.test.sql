@@ -19,12 +19,12 @@ BEGIN
   leader_id := 'a0000000-0000-4000-8000-000000000002';
   server_id := 'a0000000-0000-4000-8000-000000000003';
 
+  -- Need super_admin claim before reading/updating other profiles under RLS
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'super_admin')::text, true);
+
   IF NOT EXISTS (SELECT 1 FROM profiles WHERE id = super_admin_id) THEN
     RAISE EXCEPTION 'Seed users missing — run supabase db reset (applies seed.sql) before RLS tests';
   END IF;
-
-  -- Elevate claim first so profile role alignment is allowed under RLS
-  PERFORM set_config('request.jwt.claims', json_build_object('role', 'super_admin')::text, true);
 
   -- Ensure roles match the proposal (seed should already have set these)
   UPDATE profiles SET role = 'super_admin', full_name = 'Test Super Admin', is_active = true
