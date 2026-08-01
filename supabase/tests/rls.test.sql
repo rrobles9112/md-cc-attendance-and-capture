@@ -5,6 +5,14 @@
 -- Relies on supabase/seed.sql (via db reset) for the three role users.
 -- Creates ephemeral members/sessions for assertions and cleans those up only.
 -- Variable names use v_ prefix to avoid PL/pgSQL / column ambiguity.
+--
+-- The block runs as the `authenticated` role inside a transaction: psql connects as
+-- the postgres owner, which BYPASSES RLS — without SET ROLE no policy is ever
+-- enforced and deny-path assertions cannot pass. Claims mimic a real Supabase JWT:
+-- 'role' is the PostgREST role; the app role resolves from profiles via 'sub'.
+
+BEGIN;
+SET LOCAL ROLE authenticated;
 
 DO $$
 DECLARE
@@ -20,8 +28,9 @@ BEGIN
   v_leader_id := 'a0000000-0000-4000-8000-000000000002';
   v_server_id := 'a0000000-0000-4000-8000-000000000003';
 
-  -- Need super_admin claim before reading/updating other profiles under RLS
-  PERFORM set_config('request.jwt.claims', json_build_object('role', 'super_admin')::text, true);
+  -- Need super_admin identity before reading/updating other profiles under RLS.
+  -- Realistic JWT: 'role' is the PostgREST role; app role resolves via profiles + sub.
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_super_admin_id::text)::text, true);
 
   IF NOT EXISTS (SELECT 1 FROM profiles WHERE id = v_super_admin_id) THEN
     RAISE EXCEPTION 'Seed users missing — run supabase db reset (applies seed.sql) before RLS tests';
@@ -36,7 +45,7 @@ BEGIN
   WHERE id = v_server_id;
 
   -- Test 1: super_admin can INSERT members
-  PERFORM set_config('request.jwt.claims', json_build_object('role', 'super_admin')::text, true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_super_admin_id::text)::text, true);
 
   INSERT INTO members (name, name_normalized, phone, email, consent_recorded, created_by)
   VALUES ('RLS Test Member', 'rls test member', '+573001110001', 'rls-test-member@test.com', true, v_super_admin_id)
@@ -45,7 +54,7 @@ BEGIN
   RAISE NOTICE 'PASS: super_admin can INSERT members';
 
   -- Test 2: leader can INSERT members
-  PERFORM set_config('request.jwt.claims', json_build_object('role', 'leader')::text, true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_leader_id::text)::text, true);
 
   INSERT INTO members (name, name_normalized, phone, email, consent_recorded, created_by)
   VALUES ('RLS Leader Member', 'rls leader member', '+573001110002', 'rls-leader-member@test.com', true, v_leader_id)
@@ -54,7 +63,7 @@ BEGIN
   RAISE NOTICE 'PASS: leader can INSERT members';
 
   -- Test 3: server CANNOT INSERT members
-  PERFORM set_config('request.jwt.claims', json_build_object('role', 'server')::text, true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_server_id::text)::text, true);
 
   BEGIN
     INSERT INTO members (name, name_normalized, phone, email, consent_recorded, created_by)
@@ -73,7 +82,7 @@ BEGIN
   END;
 
   -- Test 4: leader CANNOT UPDATE members
-  PERFORM set_config('request.jwt.claims', json_build_object('role', 'leader')::text, true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_leader_id::text)::text, true);
 
   BEGIN
     UPDATE members SET phone = '+573007777777' WHERE id = v_member_id;
@@ -109,19 +118,19 @@ BEGIN
   END;
 
   -- Test 6: server can INSERT attendance
-  PERFORM set_config('request.jwt.claims', json_build_object('role', 'super_admin')::text, true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_super_admin_id::text)::text, true);
   INSERT INTO sessions (name, session_date, created_by)
   VALUES ('RLS Test Session', '2026-07-17', v_super_admin_id)
   RETURNING id INTO v_session_id;
 
-  PERFORM set_config('request.jwt.claims', json_build_object('role', 'server')::text, true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_server_id::text)::text, true);
   INSERT INTO attendance (member_id, session_id, marked_by)
   VALUES (v_member_id, v_session_id, v_server_id);
 
   RAISE NOTICE 'PASS: server can INSERT attendance';
 
   -- Test 7: super_admin can UPDATE members
-  PERFORM set_config('request.jwt.claims', json_build_object('role', 'super_admin')::text, true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_super_admin_id::text)::text, true);
   UPDATE members SET phone = '+573001111111' WHERE id = v_member_id;
 
   RAISE NOTICE 'PASS: super_admin can UPDATE members';
@@ -133,3 +142,5 @@ BEGIN
 
   RAISE NOTICE 'All RLS tests passed';
 END $$;
+
+ROLLBACK;
