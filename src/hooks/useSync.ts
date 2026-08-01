@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { getPendingCount, getSyncStatus, flushQueue, onOnline } from '@/lib/sync/queue'
 import type { SyncStatus } from '@/lib/sync/db'
 
@@ -10,9 +10,13 @@ interface UseSyncReturn {
   flush: () => Promise<void>
 }
 
+const STATUS_REFRESH_MS = 10_000
+const AUTO_FLUSH_MS = 30_000
+
 export function useSync(): UseSyncReturn {
   const [status, setStatus] = useState<SyncStatus>('done')
   const [pendingCount, setPendingCount] = useState(0)
+  const flushingRef = useRef(false)
 
   const refresh = useCallback(async () => {
     const [s, p] = await Promise.all([getSyncStatus(), getPendingCount()])
@@ -21,13 +25,25 @@ export function useSync(): UseSyncReturn {
   }, [])
 
   const flush = useCallback(async () => {
+    if (flushingRef.current) return
+    flushingRef.current = true
     setStatus('syncing')
-    await flushQueue()
-    await refresh()
+    try {
+      await flushQueue()
+      await refresh()
+    } finally {
+      flushingRef.current = false
+    }
   }, [refresh])
 
   useEffect(() => {
-    refresh()
+    let disposed = false
+
+    const safeRefresh = async () => {
+      if (!disposed) await refresh()
+    }
+
+    void safeRefresh()
 
     const unsubscribe = onOnline(() => flush())
 
@@ -36,12 +52,22 @@ export function useSync(): UseSyncReturn {
     }
     navigator.serviceWorker?.addEventListener('message', handleMessage)
 
-    const interval = setInterval(refresh, 10000)
+    const statusInterval = setInterval(() => void safeRefresh(), STATUS_REFRESH_MS)
+
+    const flushInterval = setInterval(async () => {
+      if (disposed || flushingRef.current) return
+      if (typeof navigator === 'undefined' || !navigator.onLine) return
+      const pending = await getPendingCount()
+      if (disposed || pending === 0) return
+      await flush()
+    }, AUTO_FLUSH_MS)
 
     return () => {
+      disposed = true
       unsubscribe()
       navigator.serviceWorker?.removeEventListener('message', handleMessage)
-      clearInterval(interval)
+      clearInterval(statusInterval)
+      clearInterval(flushInterval)
     }
   }, [flush, refresh])
 

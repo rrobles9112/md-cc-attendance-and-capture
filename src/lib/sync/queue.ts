@@ -9,6 +9,27 @@ function uuid(): string {
   })
 }
 
+const FLUSH_TIMEOUT_MS = 10_000
+
+function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`Sync request timed out after ${ms}ms`)),
+      ms
+    )
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error) => {
+        clearTimeout(timer)
+        reject(error)
+      }
+    )
+  })
+}
+
 export async function enqueue(
   tableName: string,
   recordId: string,
@@ -28,6 +49,11 @@ export async function enqueue(
 }
 
 export async function flushQueue(): Promise<{ succeeded: number; failed: number }> {
+  await db.sync_queue
+    .where('status')
+    .equals('syncing')
+    .modify({ status: 'pending' })
+
   const pending = await db.sync_queue
     .where('status')
     .anyOf(['pending', 'failed'])
@@ -47,15 +73,24 @@ export async function flushQueue(): Promise<{ succeeded: number; failed: number 
 
       switch (item.operation) {
         case 'insert':
-          const { error: insertErr } = await table.upsert(item.payload)
+          const { error: insertErr } = await withTimeout(
+            table.upsert(item.payload),
+            FLUSH_TIMEOUT_MS
+          )
           if (insertErr) throw insertErr
           break
         case 'update':
-          const { error: updateErr } = await table.update(item.payload).eq('id', item.record_id)
+          const { error: updateErr } = await withTimeout(
+            table.update(item.payload).eq('id', item.record_id),
+            FLUSH_TIMEOUT_MS
+          )
           if (updateErr) throw updateErr
           break
         case 'delete':
-          const { error: deleteErr } = await table.delete().eq('id', item.record_id)
+          const { error: deleteErr } = await withTimeout(
+            table.delete().eq('id', item.record_id),
+            FLUSH_TIMEOUT_MS
+          )
           if (deleteErr) throw deleteErr
           break
       }
