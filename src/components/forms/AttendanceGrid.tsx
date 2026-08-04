@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { db, type Member, type Session, type Attendance } from '@/lib/sync/db'
 import { enqueue } from '@/lib/sync/queue'
 import { useRealtime } from '@/hooks/useRealtime'
+import { useCacheHydration } from '@/hooks/useCacheHydration'
 import { useRole } from '@/hooks/useRole'
 import { canCreate } from '@/lib/rbac/guards'
 import { resolveAttendanceConflict } from '@/lib/sync/conflict'
@@ -73,6 +74,11 @@ export function AttendanceGrid({ sessions, onSessionCreated }: AttendanceGridPro
   useEffect(() => {
     loadAttendance()
   }, [loadAttendance])
+
+  useCacheHydration(() => {
+    void loadMembers()
+    void loadAttendance()
+  })
 
   useRealtime({
     table: 'attendance',

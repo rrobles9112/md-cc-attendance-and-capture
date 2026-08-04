@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRole } from '@/hooks/useRole'
 import { useSync } from '@/hooks/useSync'
+import { useCacheHydration } from '@/hooks/useCacheHydration'
 import { canManageUsers, canViewAudit, canManageARCO } from '@/lib/rbac/guards'
 import { createClient } from '@/lib/supabase/client'
 import { getDpoContactEmail, setSetting } from '@/lib/settings/app-settings'
@@ -80,6 +81,10 @@ export default function AdminPage() {
     if (activeTab === 'settings') loadDpoEmail()
     if (activeTab === 'purge') loadPurgeableCount()
   }, [role, activeTab, loadUsers, loadAuditLogs, loadArcoRequests, loadDpoEmail, loadPurgeableCount])
+
+  useCacheHydration(() => {
+    if (activeTab === 'purge') void loadPurgeableCount()
+  })
 
   async function handleRoleChange(userId: string, newRole: string) {
     const supabase = createClient()

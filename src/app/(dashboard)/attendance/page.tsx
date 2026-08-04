@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { db, type Session } from '@/lib/sync/db'
 import { useRealtime } from '@/hooks/useRealtime'
+import { useCacheHydration } from '@/hooks/useCacheHydration'
 import { AttendanceGrid } from '@/components/forms/AttendanceGrid'
 
 export default function AttendancePage() {
@@ -20,6 +21,10 @@ export default function AttendancePage() {
   useEffect(() => {
     loadSessions()
   }, [loadSessions])
+
+  useCacheHydration(() => {
+    void loadSessions()
+  })
 
   useRealtime({
     table: 'sessions',
