@@ -9,7 +9,8 @@ import { createClient } from '@/lib/supabase/client'
 import { getDpoContactEmail, setSetting } from '@/lib/settings/app-settings'
 import { getPendingARCORequests, fulfillARCORequest, updateARCOStatus } from '@/lib/arco/workflow'
 import { isPurgeEligible } from '@/lib/delete/soft-delete'
-import { db } from '@/lib/sync/db'
+import { db, type SyncQueueItem } from '@/lib/sync/db'
+import { getFailedQueueItems, discardQueueItem, retryQueueItem } from '@/lib/sync/queue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -37,6 +38,7 @@ export default function AdminPage() {
   const [arcoRequests, setArcoRequests] = useState<Array<{ id: string; member_id: string | null; request_type: string; status: string; deadline: string; notes: string | null }>>([])
   const [dpoEmail, setDpoEmail] = useState('')
   const [purgeableCount, setPurgeableCount] = useState(0)
+  const [failedQueueItems, setFailedQueueItems] = useState<SyncQueueItem[]>([])
 
   const loadUsers = useCallback(async () => {
     const supabase = createClient()
@@ -73,6 +75,10 @@ export default function AdminPage() {
     setPurgeableCount(count)
   }, [])
 
+  const loadFailedQueueItems = useCallback(async () => {
+    setFailedQueueItems(await getFailedQueueItems())
+  }, [])
+
   useEffect(() => {
     if (!role) return
     if (activeTab === 'users' && canManageUsers(role)) loadUsers()
@@ -80,7 +86,8 @@ export default function AdminPage() {
     if (activeTab === 'arco' && canManageARCO(role)) loadArcoRequests()
     if (activeTab === 'settings') loadDpoEmail()
     if (activeTab === 'purge') loadPurgeableCount()
-  }, [role, activeTab, loadUsers, loadAuditLogs, loadArcoRequests, loadDpoEmail, loadPurgeableCount])
+    if (activeTab === 'sync') loadFailedQueueItems()
+  }, [role, activeTab, loadUsers, loadAuditLogs, loadArcoRequests, loadDpoEmail, loadPurgeableCount, loadFailedQueueItems])
 
   useCacheHydration(() => {
     if (activeTab === 'purge') void loadPurgeableCount()
@@ -127,6 +134,19 @@ export default function AdminPage() {
     } catch {
       toast.error('Error al actualizar estado')
     }
+  }
+
+  async function handleDiscardQueueItem(id: string) {
+    if (!confirm('¿Descartar este elemento de la cola de sincronización? El registro local no se eliminará.')) return
+    await discardQueueItem(id)
+    toast.success('Elemento descartado')
+    loadFailedQueueItems()
+  }
+
+  async function handleRetryQueueItem(id: string) {
+    await retryQueueItem(id)
+    toast.success('Elemento marcado para reintento')
+    loadFailedQueueItems()
   }
 
   async function handlePurgeDeleted() {
@@ -418,6 +438,52 @@ export default function AdminPage() {
                 <p className="text-xs text-muted-foreground">Almacenamiento</p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === 'sync' && failedQueueItems.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Elementos con error de sincronización</CardTitle>
+            <CardDescription>
+              Estos registros no pudieron enviarse a la base de datos. Revise el motivo antes de reintentar o descartar.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tabla</TableHead>
+                  <TableHead>Operación</TableHead>
+                  <TableHead>Error</TableHead>
+                  <TableHead className="hidden md:table-cell">Fecha</TableHead>
+                  <TableHead>Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {failedQueueItems.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-medium">{item.table_name}</TableCell>
+                    <TableCell>{item.operation}</TableCell>
+                    <TableCell className="max-w-xs truncate text-destructive" title={item.error}>
+                      {item.error ?? 'Error desconocido'}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {new Date(item.created_at).toLocaleString('es-CO')}
+                    </TableCell>
+                    <TableCell className="space-x-2">
+                      <Button variant="outline" size="sm" onClick={() => handleRetryQueueItem(item.id)}>
+                        Reintentar
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={() => handleDiscardQueueItem(item.id)}>
+                        Descartar
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
