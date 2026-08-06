@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { db, type Session } from '@/lib/sync/db'
 import { generateMemberExport, exportToCSV, exportToXLSX } from '@/lib/export/generate'
+import { useCacheHydration } from '@/hooks/useCacheHydration'
 import { useRole } from '@/hooks/useRole'
 import { canExport } from '@/lib/rbac/guards'
 import { Button } from '@/components/ui/button'
@@ -40,6 +41,10 @@ export default function ExportPage() {
   useEffect(() => {
     loadSessions()
   }, [loadSessions])
+
+  useCacheHydration(() => {
+    void loadSessions()
+  })
 
   async function handleExportMembers(format: 'csv' | 'xlsx') {
     setExporting(true)

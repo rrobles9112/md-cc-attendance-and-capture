@@ -1,5 +1,6 @@
 import { db, type SyncQueueItem, type SyncStatus } from './db'
 import { createClient } from '@/lib/supabase/client'
+import { getHydrationPhase, hasHydratedThisSession } from './hydrate'
 
 function uuid(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -126,6 +127,11 @@ export async function getPendingCount(): Promise<number> {
 export async function getSyncStatus(): Promise<SyncStatus> {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return 'offline' as SyncStatus
 
+  const hydration = getHydrationPhase()
+  if (hydration === 'syncing' || (hydration === 'idle' && !hasHydratedThisSession())) {
+    return 'syncing'
+  }
+
   const syncing = await db.sync_queue.where('status').equals('syncing').count()
   if (syncing > 0) return 'syncing'
 
@@ -134,6 +140,15 @@ export async function getSyncStatus(): Promise<SyncStatus> {
 
   const pending = await db.sync_queue.where('status').equals('pending').count()
   if (pending > 0) return 'syncing'
+
+  // Empty outbound queue is not "synced" until a successful remote pull this session.
+  if (hydration === 'failed' && !hasHydratedThisSession()) {
+    return 'failed'
+  }
+
+  if (!hasHydratedThisSession()) {
+    return 'syncing'
+  }
 
   return 'done'
 }

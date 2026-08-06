@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { db, type Member, type SocialMedia, type WhatsAppNumber } from '@/lib/sync/db'
 import { useRealtime } from '@/hooks/useRealtime'
+import { useCacheHydration } from '@/hooks/useCacheHydration'
 import { useRole } from '@/hooks/useRole'
 import { canDelete } from '@/lib/rbac/guards'
 import { softDelete } from '@/lib/delete/soft-delete'
@@ -46,6 +47,10 @@ export default function MembersPage() {
   useEffect(() => {
     loadMembers()
   }, [loadMembers])
+
+  useCacheHydration(() => {
+    void loadMembers()
+  })
 
   useRealtime({
     table: 'members',

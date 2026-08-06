@@ -44,7 +44,12 @@ export function SyncIndicator() {
   const { label, icon: Icon, className } = config[status] ?? config.done
 
   return (
-    <Badge variant="outline" className={cn('gap-1.5 text-xs', className)}>
+    <Badge
+      variant="outline"
+      data-testid="sync-indicator"
+      data-sync-status={status}
+      className={cn('gap-1.5 text-xs', className)}
+    >
       <Icon
         className={cn(
           'h-3 w-3',
