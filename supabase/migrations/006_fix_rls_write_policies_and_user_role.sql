@@ -22,11 +22,13 @@
 -- Robust user_role(): profiles lookup first, then JWT app_metadata.role fallback.
 -- app_metadata.role is the authoritative app role set at signup / by an admin; the
 -- PostgREST 'role' JWT claim (anon/authenticated) is NOT an app_role and is ignored.
+-- Type references are schema-qualified because the function runs with an empty
+-- search_path (SECURITY DEFINER hardening), so unqualified type names won't resolve.
 -- =============================================================================
-CREATE OR REPLACE FUNCTION public.user_role() RETURNS app_role AS $$
+CREATE OR REPLACE FUNCTION public.user_role() RETURNS public.app_role AS $$
   SELECT COALESCE(
     (SELECT role FROM public.profiles WHERE id = auth.uid()),
-    (auth.jwt() -> 'app_metadata' ->> 'role')::app_role
+    (auth.jwt() -> 'app_metadata' ->> 'role')::public.app_role
   )
 $$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '';
 
