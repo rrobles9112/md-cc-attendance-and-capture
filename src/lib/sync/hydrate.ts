@@ -72,12 +72,16 @@ async function reconcileSoftDeletable<T extends { id: string; deleted_at: string
   bulkDelete: (ids: string[]) => Promise<unknown>,
   listLocal: () => Promise<T[]>
 ): Promise<void> {
-  if (remoteRows.length > 0) {
-    await bulkPut(remoteRows)
+  const pendingIds = await pendingRecordIds(tableName)
+  // Preserve local rows that still have outbound queue work (e.g. soft-delete
+  // pending push). Overwriting them from remote would resurrect deleted_at=null
+  // before flushQueue runs and undo the local delete.
+  const rowsToPut = remoteRows.filter((row) => !pendingIds.has(row.id))
+  if (rowsToPut.length > 0) {
+    await bulkPut(rowsToPut)
   }
 
   const remoteIds = new Set(remoteRows.map((row) => row.id))
-  const pendingIds = await pendingRecordIds(tableName)
   const localRows = await listLocal()
   const staleIds = localRows
     .filter((row) => row.deleted_at === null)
@@ -96,12 +100,13 @@ async function reconcileExact<T extends { id: string }>(
   bulkDelete: (ids: string[]) => Promise<unknown>,
   listLocalIds: () => Promise<string[]>
 ): Promise<void> {
-  if (remoteRows.length > 0) {
-    await bulkPut(remoteRows)
+  const pendingIds = await pendingRecordIds(tableName)
+  const rowsToPut = remoteRows.filter((row) => !pendingIds.has(row.id))
+  if (rowsToPut.length > 0) {
+    await bulkPut(rowsToPut)
   }
 
   const remoteIds = new Set(remoteRows.map((row) => row.id))
-  const pendingIds = await pendingRecordIds(tableName)
   const localIds = await listLocalIds()
   const staleIds = localIds.filter((id) => !remoteIds.has(id) && !pendingIds.has(id))
 

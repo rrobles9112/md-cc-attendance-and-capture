@@ -246,6 +246,30 @@ describe('hydrateFromRemote', () => {
     expect(mockBulkDeleteMembers).toHaveBeenCalledWith(['stale'])
   })
 
+  it('does not overwrite local rows that have pending outbound queue items', async () => {
+    mockSyncQueueWhere.mockImplementation((field: string) => {
+      expect(field).toBe('table_name')
+      return {
+        equals: (table: string) => ({
+          filter: () => ({
+            toArray: () =>
+              Promise.resolve(
+                table === 'members'
+                  ? [{ record_id: 'm1', status: 'pending' }]
+                  : []
+              ),
+          }),
+        }),
+      }
+    })
+
+    await hydrateFromRemote({ force: true })
+
+    // Remote returned m1 with deleted_at=null; local soft-delete is pending —
+    // hydrate must not bulkPut m1 and resurrect it.
+    expect(mockBulkPutMembers).not.toHaveBeenCalled()
+  })
+
   it('skips remote pull while offline', async () => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
     const result = await hydrateFromRemote({ force: true })

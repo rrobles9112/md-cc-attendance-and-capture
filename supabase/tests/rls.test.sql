@@ -135,6 +135,28 @@ BEGIN
 
   RAISE NOTICE 'PASS: super_admin can UPDATE members';
 
+  -- Test 8: super_admin can soft-delete members (UPDATE deleted_at).
+  -- Regression: SELECT policies that require deleted_at IS NULL cause 42501 on
+  -- the new row image when UPDATE has a WHERE clause (Postgres applies SELECT
+  -- policies to both old and new rows for UPDATE).
+  PERFORM set_config(
+    'request.jwt.claims',
+    json_build_object(
+      'role', 'authenticated',
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
+    )::text,
+    true
+  );
+  UPDATE members SET deleted_at = now(), updated_at = now() WHERE id = v_member_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'FAIL: super_admin soft-delete UPDATE affected 0 rows';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM members WHERE id = v_member_id AND deleted_at IS NOT NULL) THEN
+    RAISE EXCEPTION 'FAIL: soft-deleted member not visible to super_admin SELECT';
+  END IF;
+  RAISE NOTICE 'PASS: super_admin can soft-delete members';
+
   -- Cleanup ephemeral rows only — keep seeded auth users / sample data
   DELETE FROM attendance WHERE session_id = v_session_id;
   DELETE FROM sessions WHERE id = v_session_id;
