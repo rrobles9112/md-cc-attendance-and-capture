@@ -30,6 +30,7 @@ export default function AttendancePage() {
     table: 'sessions',
     onInsert: () => loadSessions(),
     onUpdate: () => loadSessions(),
+    onDelete: () => loadSessions(),
   })
 
   return (

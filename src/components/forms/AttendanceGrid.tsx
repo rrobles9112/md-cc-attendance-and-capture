@@ -92,6 +92,7 @@ export function AttendanceGrid({ sessions, onSessionCreated }: AttendanceGridPro
     table: 'members',
     onInsert: () => loadMembers(),
     onUpdate: () => loadMembers(),
+    onDelete: () => loadMembers(),
   })
 
   async function handleToggleAttendance(memberId: string) {

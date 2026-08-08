@@ -4,25 +4,65 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/
 
 type TableName = 'members' | 'sessions' | 'attendance' | 'social_media' | 'whatsapp_numbers'
 
-interface SubscriptionConfig {
+type RecordData = Record<string, unknown>
+
+export interface RealtimeCallbacks {
+  onInsert?: (record: RecordData) => void
+  onUpdate?: (record: RecordData) => void
+  onDelete?: (record: RecordData) => void
+}
+
+interface SubscriptionConfig extends RealtimeCallbacks {
   table: TableName
   filter?: string
-  onInsert?: (record: Record<string, unknown>) => void
-  onUpdate?: (record: Record<string, unknown>) => void
-  onDelete?: (record: Record<string, unknown>) => void
+}
+
+interface ManagedChannel {
+  channel: RealtimeChannel
+  /** Every component subscribed to this channel; each keeps its own callbacks. */
+  listeners: Set<RealtimeCallbacks>
+  reconnectScheduled?: boolean
 }
 
 export class RealtimeManager {
-  private channels: Map<string, RealtimeChannel> = new Map()
+  private channels: Map<string, ManagedChannel> = new Map()
   private supabase = createClient()
 
-  subscribe(config: SubscriptionConfig): RealtimeChannel {
+  /**
+   * Subscribes to changes on a table. Components subscribing to the same
+   * table/filter share a single channel, but each keeps its own callbacks.
+   * Returns the channel name; pass it (plus the callbacks object) to
+   * unsubscribe() when the component unmounts.
+   */
+  subscribe(config: SubscriptionConfig): string {
     const channelName = `db-changes-${config.table}-${config.filter ?? 'all'}`
-
-    if (this.channels.has(channelName)) {
-      return this.channels.get(channelName)!
+    const callbacks: RealtimeCallbacks = {
+      onInsert: config.onInsert,
+      onUpdate: config.onUpdate,
+      onDelete: config.onDelete,
     }
 
+    const existing = this.channels.get(channelName)
+    if (existing) {
+      existing.listeners.add(callbacks)
+      return channelName
+    }
+
+    const managed: ManagedChannel = {
+      channel: undefined as unknown as RealtimeChannel,
+      listeners: new Set([callbacks]),
+    }
+    managed.channel = this.createChannel(channelName, config.table, config.filter, managed)
+    this.channels.set(channelName, managed)
+    return channelName
+  }
+
+  private createChannel(
+    channelName: string,
+    table: TableName,
+    filter: string | undefined,
+    managed: ManagedChannel
+  ): RealtimeChannel {
     const channel = this.supabase
       .channel(channelName)
       .on(
@@ -30,47 +70,50 @@ export class RealtimeManager {
         {
           event: '*',
           schema: 'public',
-          table: config.table,
-          filter: config.filter,
+          table,
+          filter,
         },
-        (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
-          this.handleEvent(config.table, payload, config)
+        (payload: RealtimePostgresChangesPayload<RecordData>) => {
+          void this.handleEvent(table, payload, managed.listeners)
         }
       )
       .subscribe((status) => {
-        if (status === 'CHANNEL_ERROR') {
-          this.reconnect(config)
+        if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && !managed.reconnectScheduled) {
+          managed.reconnectScheduled = true
+          setTimeout(() => {
+            managed.reconnectScheduled = false
+            this.reconnect(channelName, table, filter, managed)
+          }, 3000)
         }
       })
 
-    this.channels.set(channelName, channel)
     return channel
   }
 
   private async handleEvent(
     table: TableName,
-    payload: RealtimePostgresChangesPayload<Record<string, unknown>>,
-    config: SubscriptionConfig
+    payload: RealtimePostgresChangesPayload<RecordData>,
+    listeners: Set<RealtimeCallbacks>
   ): Promise<void> {
     const { eventType, new: newRecord, old: oldRecord } = payload
 
     switch (eventType) {
       case 'INSERT':
-        await this.upsertLocal(table, newRecord as Record<string, unknown>)
-        config.onInsert?.(newRecord as Record<string, unknown>)
+        await this.upsertLocal(table, newRecord as RecordData)
+        listeners.forEach((l) => l.onInsert?.(newRecord as RecordData))
         break
       case 'UPDATE':
-        await this.upsertLocal(table, newRecord as Record<string, unknown>)
-        config.onUpdate?.(newRecord as Record<string, unknown>)
+        await this.upsertLocal(table, newRecord as RecordData)
+        listeners.forEach((l) => l.onUpdate?.(newRecord as RecordData))
         break
       case 'DELETE':
-        await this.deleteLocal(table, oldRecord as Record<string, unknown>)
-        config.onDelete?.(oldRecord as Record<string, unknown>)
+        await this.deleteLocal(table, oldRecord as RecordData)
+        listeners.forEach((l) => l.onDelete?.(oldRecord as RecordData))
         break
     }
   }
 
-  private async upsertLocal(table: TableName, record: Record<string, unknown>): Promise<void> {
+  private async upsertLocal(table: TableName, record: RecordData): Promise<void> {
     switch (table) {
       case 'members':
         await db.members.put(record as unknown as import('@/lib/sync/db').Member)
@@ -90,7 +133,7 @@ export class RealtimeManager {
     }
   }
 
-  private async deleteLocal(table: TableName, record: Record<string, unknown>): Promise<void> {
+  private async deleteLocal(table: TableName, record: RecordData): Promise<void> {
     const id = record.id as string
     if (!id) return
 
@@ -113,23 +156,43 @@ export class RealtimeManager {
     }
   }
 
-  private reconnect(config: SubscriptionConfig): void {
-    const channelName = `db-changes-${config.table}-${config.filter ?? 'all'}`
-    this.channels.delete(channelName)
-    setTimeout(() => this.subscribe(config), 3000)
+  private reconnect(
+    channelName: string,
+    table: TableName,
+    filter: string | undefined,
+    managed: ManagedChannel
+  ): void {
+    // Channel was unsubscribed while the reconnect was pending.
+    if (!this.channels.has(channelName) || managed.listeners.size === 0) return
+
+    void this.supabase.removeChannel(managed.channel)
+    managed.channel = this.createChannel(channelName, table, filter, managed)
   }
 
-  unsubscribe(channelName: string): void {
-    const channel = this.channels.get(channelName)
-    if (channel) {
-      this.supabase.removeChannel(channel)
+  /**
+   * Removes one subscriber's callbacks. The underlying channel is only torn
+   * down when the last subscriber leaves, so a shared channel survives other
+   * components' unmounts.
+   */
+  unsubscribe(channelName: string, callbacks?: RealtimeCallbacks): void {
+    const managed = this.channels.get(channelName)
+    if (!managed) return
+
+    if (callbacks) {
+      managed.listeners.delete(callbacks)
+    } else {
+      managed.listeners.clear()
+    }
+
+    if (managed.listeners.size === 0) {
       this.channels.delete(channelName)
+      void this.supabase.removeChannel(managed.channel)
     }
   }
 
   unsubscribeAll(): void {
-    for (const [name, channel] of this.channels) {
-      this.supabase.removeChannel(channel)
+    for (const [name, managed] of this.channels) {
+      void this.supabase.removeChannel(managed.channel)
       this.channels.delete(name)
     }
   }
