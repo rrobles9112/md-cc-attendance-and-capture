@@ -61,7 +61,11 @@ jobs:
       - uses: actions/checkout@v7
       - uses: supabase/setup-cli@v3
         with:
-          version: latest
+          # Pinned: supabase CLI 2.112.0 has a regression parsing the management
+          # API response ("failed to get api keys: SchemaError ... inserted_at"),
+          # breaking `link` / `migration list --linked` / `db push`. 2.111.0 is
+          # the last version proven to deploy this project successfully.
+          version: 2.111.0
       - name: Install psql client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: Start local Supabase and apply migrations + seed

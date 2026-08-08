@@ -37,14 +37,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: supabase/setup-cli@v3
+        with:
+          # Pinned: supabase CLI 2.112.0 has a regression parsing the management
+          # API response ("failed to get api keys: SchemaError ... inserted_at"),
+          # which breaks `supabase link` and therefore `db push`. 2.111.0 is the
+          # last version proven to deploy this project (see main deploy of
+          # 2026-08-07). Do not use `npx supabase` — it re-resolves to latest.
+          version: 2.111.0
       - name: Apply Supabase Migrations
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
           # db push applies migrations only — seed.sql is local-only (config.toml [db.seed])
-          npx supabase link --project-ref=$SUPABASE_PROJECT_REF
-          npx supabase db push --linked
+          supabase link --project-ref=$SUPABASE_PROJECT_REF
+          supabase db push --linked
 
   deploy:
     needs: migrate
