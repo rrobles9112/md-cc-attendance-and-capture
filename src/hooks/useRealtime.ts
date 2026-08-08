@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { realtimeManager } from '@/lib/realtime/manager'
+import { realtimeManager, type RealtimeCallbacks } from '@/lib/realtime/manager'
 
 interface UseRealtimeOptions {
   table: 'members' | 'sessions' | 'attendance' | 'social_media' | 'whatsapp_numbers'
@@ -13,28 +13,34 @@ interface UseRealtimeOptions {
 }
 
 export function useRealtime(options: UseRealtimeOptions) {
-  const { table, filter, onInsert, onUpdate, onDelete, enabled = true } = options
-  const channelNameRef = useRef<string | null>(null)
+  const { table, filter, enabled = true } = options
+
+  // Always dispatch to the latest callbacks without re-subscribing.
+  // Inline arrow props (e.g. onInsert={() => load()}) get a new identity on
+  // every render; listing them in the effect deps would tear down and
+  // re-create the channel on every render and drop events in the gap.
+  const latestRef = useRef<RealtimeCallbacks>({})
+  latestRef.current = {
+    onInsert: options.onInsert,
+    onUpdate: options.onUpdate,
+    onDelete: options.onDelete,
+  }
 
   useEffect(() => {
     if (!enabled) return
 
-    const channelName = `db-changes-${table}-${filter ?? 'all'}`
-    channelNameRef.current = channelName
+    // Stable proxy object: identity never changes across renders, so the
+    // manager can use it to track this subscriber.
+    const callbacks: RealtimeCallbacks = {
+      onInsert: (record) => latestRef.current.onInsert?.(record),
+      onUpdate: (record) => latestRef.current.onUpdate?.(record),
+      onDelete: (record) => latestRef.current.onDelete?.(record),
+    }
 
-    realtimeManager.subscribe({
-      table,
-      filter,
-      onInsert,
-      onUpdate,
-      onDelete,
-    })
+    const channelName = realtimeManager.subscribe({ table, filter, ...callbacks })
 
     return () => {
-      if (channelNameRef.current) {
-        realtimeManager.unsubscribe(channelNameRef.current)
-        channelNameRef.current = null
-      }
+      realtimeManager.unsubscribe(channelName, callbacks)
     }
-  }, [table, filter, enabled, onInsert, onUpdate, onDelete])
+  }, [table, filter, enabled])
 }
