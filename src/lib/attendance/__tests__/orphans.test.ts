@@ -22,6 +22,18 @@ describe('excludeOrphanedAttendance', () => {
     })
   })
 
+  it('is role-agnostic for leader and super_admin', () => {
+    const records = [
+      attendance('attendance-1', 'member-1'),
+      attendance('attendance-orphan', 'deleted-member'),
+    ]
+    const activeMemberIds = new Set(['member-1'])
+
+    expect(excludeOrphanedAttendance(records, activeMemberIds)).toEqual({
+      'member-1': records[0],
+    })
+  })
+
   it('keeps records for active members', () => {
     const records = [
       attendance('attendance-1', 'member-1'),
