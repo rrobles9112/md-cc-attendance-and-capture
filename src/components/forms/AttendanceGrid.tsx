@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useDeferredValue, useMemo } from 'react'
 import { db, type Member, type Session, type Attendance } from '@/lib/sync/db'
 import { enqueue } from '@/lib/sync/queue'
 import { useRealtime } from '@/hooks/useRealtime'
@@ -8,7 +8,7 @@ import { useCacheHydration } from '@/hooks/useCacheHydration'
 import { useRole } from '@/hooks/useRole'
 import { canCreate } from '@/lib/rbac/guards'
 import { resolveAttendanceConflict } from '@/lib/sync/conflict'
-import { countPresent, excludeOrphanedAttendance } from '@/lib/attendance'
+import { countPresent, excludeOrphanedAttendance, filterBySearch } from '@/lib/attendance'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -171,10 +171,10 @@ export function AttendanceGrid({ sessions, onSessionCreated }: AttendanceGridPro
     onSessionCreated?.()
   }
 
-  const filteredMembers = members.filter((m) =>
-    m.name.toLowerCase().includes(search.toLowerCase()) ||
-    m.phone.includes(search) ||
-    m.email.toLowerCase().includes(search.toLowerCase())
+  const deferredSearch = useDeferredValue(search)
+  const filteredMembers = useMemo(
+    () => filterBySearch(members, deferredSearch),
+    [members, deferredSearch],
   )
 
   const markedCount = countPresent(filteredMembers, attendanceMap)
@@ -258,7 +258,9 @@ export function AttendanceGrid({ sessions, onSessionCreated }: AttendanceGridPro
                 {filteredMembers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center text-muted-foreground">
-                      {search ? 'No se encontraron miembros' : 'No hay miembros registrados'}
+                      {deferredSearch.trim()
+                        ? 'No se encontraron miembros'
+                        : 'No hay miembros registrados'}
                     </TableCell>
                   </TableRow>
                 ) : (
