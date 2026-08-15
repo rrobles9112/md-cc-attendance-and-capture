@@ -8,7 +8,13 @@ import { useCacheHydration } from '@/hooks/useCacheHydration'
 import { useRole } from '@/hooks/useRole'
 import { canCreate } from '@/lib/rbac/guards'
 import { resolveAttendanceConflict } from '@/lib/sync/conflict'
-import { countPresent, excludeOrphanedAttendance, filterBySearch } from '@/lib/attendance'
+import {
+  countPresent,
+  excludeOrphanedAttendance,
+  filterBySearch,
+  PAGE_SIZE,
+  paginateMembers,
+} from '@/lib/attendance'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,6 +49,7 @@ export function AttendanceGrid({ sessions, onSessionCreated }: AttendanceGridPro
   const [members, setMembers] = useState<Member[]>([])
   const [attendanceMap, setAttendanceMap] = useState<Record<string, Attendance>>({})
   const [search, setSearch] = useState('')
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [newSessionName, setNewSessionName] = useState('')
   const [newSessionDate, setNewSessionDate] = useState(new Date().toISOString().split('T')[0])
   const [showNewSession, setShowNewSession] = useState(false)
@@ -176,6 +183,14 @@ export function AttendanceGrid({ sessions, onSessionCreated }: AttendanceGridPro
     () => filterBySearch(members, deferredSearch),
     [members, deferredSearch],
   )
+  const visibleMembers = useMemo(
+    () => paginateMembers(filteredMembers, visibleCount),
+    [filteredMembers, visibleCount],
+  )
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE)
+  }, [deferredSearch, selectedSessionId])
 
   const markedCount = countPresent(filteredMembers, attendanceMap)
 
@@ -264,7 +279,7 @@ export function AttendanceGrid({ sessions, onSessionCreated }: AttendanceGridPro
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredMembers.map((member) => {
+                  visibleMembers.map((member) => {
                     const isMarked = !!attendanceMap[member.id]
                     return (
                       <TableRow
@@ -287,6 +302,14 @@ export function AttendanceGrid({ sessions, onSessionCreated }: AttendanceGridPro
               </TableBody>
             </Table>
           </div>
+          {filteredMembers.length > visibleCount && (
+            <Button
+              variant="outline"
+              onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+            >
+              Cargar más
+            </Button>
+          )}
         </>
       )}
 
