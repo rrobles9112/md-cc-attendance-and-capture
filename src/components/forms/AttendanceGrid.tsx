@@ -8,6 +8,7 @@ import { useCacheHydration } from '@/hooks/useCacheHydration'
 import { useRole } from '@/hooks/useRole'
 import { canCreate } from '@/lib/rbac/guards'
 import { resolveAttendanceConflict } from '@/lib/sync/conflict'
+import { countPresent, excludeOrphanedAttendance } from '@/lib/attendance'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -62,10 +63,9 @@ export function AttendanceGrid({ sessions, onSessionCreated }: AttendanceGridPro
       .where('session_id')
       .equals(selectedSessionId)
       .toArray()
-    const map: Record<string, Attendance> = {}
-    records.forEach((r) => { map[r.member_id] = r })
-    setAttendanceMap(map)
-  }, [selectedSessionId])
+    const activeMemberIds = new Set(members.map((member) => member.id))
+    setAttendanceMap(excludeOrphanedAttendance(records, activeMemberIds))
+  }, [members, selectedSessionId])
 
   useEffect(() => {
     loadMembers()
@@ -177,7 +177,7 @@ export function AttendanceGrid({ sessions, onSessionCreated }: AttendanceGridPro
     m.email.toLowerCase().includes(search.toLowerCase())
   )
 
-  const markedCount = Object.keys(attendanceMap).length
+  const markedCount = countPresent(filteredMembers, attendanceMap)
 
   return (
     <div className="space-y-4">
