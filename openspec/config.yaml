@@ -1,0 +1,85 @@
+# SDD OpenSpec Configuration — MD_CC_ATTENDANCE_AND_CAPTURE
+# Initialized: 2026-08-12
+
+project:
+  name: md-cc-attendance-and-capture
+  type: web-app
+  framework: next.js
+  version: "15.5.22"
+
+stack:
+  runtime: node
+  language: typescript
+  version: "5.8.3"
+  strict: true
+  ui:
+    - react 19.2.8
+    - radix-ui
+    - tailwindcss 4.1.8
+    - lucide-react
+    - class-variance-authority
+  backend:
+    - supabase (auth, db, realtime, storage)
+    - @supabase/ssr 0.6.1
+    - @supabase/supabase-js 2.112.0
+  persistence:
+    - supabase (postgres 15, primary)
+    - dexie 4.0.11 (indexeddb, offline-first)
+  data:
+    - xlsx (sheetjs, export)
+
+testing:
+  strict_tdd: true
+  unit:
+    runner: vitest
+    command: "npx vitest"
+    config: vitest.config.ts
+    environment: jsdom
+    pattern: "src/**/__tests__/**/*.test.{ts,tsx}"
+    existing_files: 8
+  e2e:
+    runner: playwright
+    command: "npx playwright test"
+    config: playwright.config.ts
+    test_dir: e2e
+    browsers: [chromium, firefox]
+    existing_files: 4
+  lint:
+    runner: eslint
+    command: "npx next lint"
+    config: .eslintrc.json
+    extends: next/core-web-vitals
+  typecheck:
+    runner: tsc
+    command: "npx tsc --noEmit"
+    config: tsconfig.json
+    strict: true
+
+conventions:
+  app_router: true
+  route_groups:
+    - "(auth)"
+    - "(dashboard)"
+  lib_modules:
+    - arco
+    - audit
+    - consent
+    - delete
+    - export
+    - rbac
+    - realtime
+    - settings
+    - supabase
+    - sync
+  path_alias: "@/* -> ./src/*"
+
+persistence:
+  mode: both
+  openspec_dir: openspec
+  sdd_legacy_dir: sdd/attendance-and-capture-platform
+
+notes:
+  - "Existing sdd/ directory from older SDD cycle — preserved, not migrated"
+  - "openspec/ is the new file store going forward"
+  - "Supabase has 10 migrations, RLS policies, realtime publication enabled"
+  - "Offline-first architecture with Dexie + sync queue"
