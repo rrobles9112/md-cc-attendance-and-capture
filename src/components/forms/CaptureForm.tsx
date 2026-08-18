@@ -10,10 +10,17 @@ import { Badge } from '@/components/ui/badge'
 import { db } from '@/lib/sync/db'
 import { enqueue } from '@/lib/sync/queue'
 import { validateGeneralConsent, validateMinorFields, checkMinorStatus } from '@/lib/consent/validation'
-import { PRIVACY_NOTICE_ES, SENSITIVE_DATA_NOTICE_ES, POLICY_VERSION } from '@/lib/consent/privacy-notice'
+import { PRIVACY_NOTICE_ES, RETREAT_PRIVACY_NOTICE_ES, SENSITIVE_DATA_NOTICE_ES } from '@/lib/consent/privacy-notice'
 import { logGeneralConsent, logSensitiveConsent } from '@/lib/audit/consent-logger'
 import { findDuplicateMembers, markDuplicateFlag } from '@/lib/sync/conflict'
 import { createClient } from '@/lib/supabase/client'
+import {
+  RETREAT_ERROR_MESSAGE,
+  RETREAT_PERSONAL_DESCRIPTION,
+  RETREAT_SUBMIT_LABEL,
+  RETREAT_SUBMITTING_LABEL,
+  RETREAT_SUCCESS_MESSAGE,
+} from '@/lib/retreat/constants'
 import { toast } from 'sonner'
 import { Plus, X } from 'lucide-react'
 
@@ -30,11 +37,62 @@ const SOCIAL_PLATFORMS = [
   { value: 'other', label: 'Otro' },
 ]
 
-interface CaptureFormProps {
-  onSuccess?: () => void
+export type CaptureFormVariant = 'member' | 'retreat'
+
+export type CaptureSubmitPayload = {
+  name: string
+  phone: string
+  email: string
+  birthday: string
+  isMinor: boolean
+  legalRepName: string
+  generalConsent: boolean
+  sensitiveConsent: boolean
+  denomination: string
+  communityName: string
 }
 
-export function CaptureForm({ onSuccess }: CaptureFormProps) {
+export interface CaptureFormProps {
+  onSuccess?: () => void
+  variant?: CaptureFormVariant
+  submitAdapter?: (payload: CaptureSubmitPayload) => Promise<void>
+}
+
+function captureFormConfig(variant: CaptureFormVariant) {
+  switch (variant) {
+    case 'member':
+      return {
+        personalDescription: 'Información de contacto del miembro',
+        submitLabel: 'Registrar miembro',
+        submittingLabel: 'Registrando...',
+        successToast: 'Miembro registrado exitosamente',
+        errorToast: 'Error al registrar el miembro',
+        privacyNotice: PRIVACY_NOTICE_ES,
+        showOptionalContactCards: true,
+      }
+    case 'retreat':
+      return {
+        personalDescription: RETREAT_PERSONAL_DESCRIPTION,
+        submitLabel: RETREAT_SUBMIT_LABEL,
+        submittingLabel: RETREAT_SUBMITTING_LABEL,
+        successToast: RETREAT_SUCCESS_MESSAGE,
+        errorToast: RETREAT_ERROR_MESSAGE,
+        privacyNotice: RETREAT_PRIVACY_NOTICE_ES,
+        showOptionalContactCards: false,
+      }
+    default: {
+      const exhaustive: never = variant
+      throw new Error(`Unhandled CaptureForm variant: ${String(exhaustive)}`)
+    }
+  }
+}
+
+export function CaptureForm({
+  onSuccess,
+  variant = 'member',
+  submitAdapter,
+}: CaptureFormProps) {
+  const copy = captureFormConfig(variant)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
@@ -114,6 +172,27 @@ export function CaptureForm({ onSuccess }: CaptureFormProps) {
     setSubmitting(true)
 
     try {
+      const payload: CaptureSubmitPayload = {
+        name: name.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        birthday,
+        isMinor,
+        legalRepName: isMinor ? legalRepName.trim() : '',
+        generalConsent,
+        sensitiveConsent,
+        denomination,
+        communityName,
+      }
+
+      if (submitAdapter) {
+        await submitAdapter(payload)
+        toast.success(copy.successToast)
+        resetForm()
+        onSuccess?.()
+        return
+      }
+
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       const memberId = crypto.randomUUID()
@@ -208,7 +287,7 @@ export function CaptureForm({ onSuccess }: CaptureFormProps) {
         await markDuplicateFlag(memberId)
       }
 
-      toast.success('Miembro registrado exitosamente')
+      toast.success(copy.successToast)
       if (hasDuplicate) {
         toast.warning('Se detectó un posible duplicado. El administrador revisará el registro.')
       }
@@ -216,7 +295,7 @@ export function CaptureForm({ onSuccess }: CaptureFormProps) {
       resetForm()
       onSuccess?.()
     } catch (err) {
-      toast.error('Error al registrar el miembro')
+      toast.error(copy.errorToast)
       console.error('Capture error:', err)
     } finally {
       setSubmitting(false)
@@ -246,7 +325,7 @@ export function CaptureForm({ onSuccess }: CaptureFormProps) {
       <Card>
         <CardHeader>
           <CardTitle>Datos personales</CardTitle>
-          <CardDescription>Información de contacto del miembro</CardDescription>
+          <CardDescription>{copy.personalDescription}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -318,91 +397,95 @@ export function CaptureForm({ onSuccess }: CaptureFormProps) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>WhatsApp</CardTitle>
-          <CardDescription>Información de WhatsApp (opcional)</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="hasWhatsapp"
-              checked={hasWhatsapp}
-              onCheckedChange={(checked) => setHasWhatsapp(checked === true)}
-            />
-            <Label htmlFor="hasWhatsapp">El número principal tiene WhatsApp</Label>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="additionalWhatsapp">Número adicional de WhatsApp</Label>
-            <Input
-              id="additionalWhatsapp"
-              type="tel"
-              value={additionalWhatsapp}
-              onChange={(e) => setAdditionalWhatsapp(e.target.value)}
-              placeholder="+573009876543"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {copy.showOptionalContactCards && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>WhatsApp</CardTitle>
+              <CardDescription>Información de WhatsApp (opcional)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="hasWhatsapp"
+                  checked={hasWhatsapp}
+                  onCheckedChange={(checked) => setHasWhatsapp(checked === true)}
+                />
+                <Label htmlFor="hasWhatsapp">El número principal tiene WhatsApp</Label>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="additionalWhatsapp">Número adicional de WhatsApp</Label>
+                <Input
+                  id="additionalWhatsapp"
+                  type="tel"
+                  value={additionalWhatsapp}
+                  onChange={(e) => setAdditionalWhatsapp(e.target.value)}
+                  placeholder="+573009876543"
+                />
+              </div>
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Redes sociales</CardTitle>
-              <CardDescription>Perfiles en redes sociales (opcional)</CardDescription>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setShowSocialMedia(!showSocialMedia)}
-            >
-              {showSocialMedia ? 'Ocultar' : 'Agregar'}
-            </Button>
-          </div>
-        </CardHeader>
-        {showSocialMedia && (
-          <CardContent className="space-y-3">
-            {socialMedia.map((sm, index) => (
-              <div key={index} className="flex items-end gap-2">
-                <div className="w-32 space-y-1">
-                  {index === 0 && <Label>Plataforma</Label>}
-                  <select
-                    value={sm.platform}
-                    onChange={(e) => updateSocialMedia(index, 'platform', e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                  >
-                    {SOCIAL_PLATFORMS.map((p) => (
-                      <option key={p.value} value={p.value}>{p.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex-1 space-y-1">
-                  {index === 0 && <Label>Usuario</Label>}
-                  <Input
-                    value={sm.handle}
-                    onChange={(e) => updateSocialMedia(index, 'handle', e.target.value)}
-                    placeholder="@usuario"
-                  />
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Redes sociales</CardTitle>
+                  <CardDescription>Perfiles en redes sociales (opcional)</CardDescription>
                 </div>
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeSocialMedia(index)}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowSocialMedia(!showSocialMedia)}
                 >
-                  <X className="h-4 w-4" />
+                  {showSocialMedia ? 'Ocultar' : 'Agregar'}
                 </Button>
               </div>
-            ))}
-            <Button type="button" variant="outline" size="sm" onClick={addSocialMedia}>
-              <Plus className="mr-2 h-4 w-4" />
-              Agregar red social
-            </Button>
-          </CardContent>
-        )}
-      </Card>
+            </CardHeader>
+            {showSocialMedia && (
+              <CardContent className="space-y-3">
+                {socialMedia.map((sm, index) => (
+                  <div key={index} className="flex items-end gap-2">
+                    <div className="w-32 space-y-1">
+                      {index === 0 && <Label>Plataforma</Label>}
+                      <select
+                        value={sm.platform}
+                        onChange={(e) => updateSocialMedia(index, 'platform', e.target.value)}
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                      >
+                        {SOCIAL_PLATFORMS.map((p) => (
+                          <option key={p.value} value={p.value}>{p.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      {index === 0 && <Label>Usuario</Label>}
+                      <Input
+                        value={sm.handle}
+                        onChange={(e) => updateSocialMedia(index, 'handle', e.target.value)}
+                        placeholder="@usuario"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeSocialMedia(index)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button type="button" variant="outline" size="sm" onClick={addSocialMedia}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Agregar red social
+                </Button>
+              </CardContent>
+            )}
+          </Card>
+        </>
+      )}
 
       <Card>
         <CardHeader>
@@ -456,7 +539,7 @@ export function CaptureForm({ onSuccess }: CaptureFormProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-md bg-muted p-4 text-sm max-h-48 overflow-y-auto">
-            <p className="whitespace-pre-line">{PRIVACY_NOTICE_ES}</p>
+            <p className="whitespace-pre-line">{copy.privacyNotice}</p>
           </div>
           <div className="flex items-start space-x-2">
             <Checkbox
@@ -474,7 +557,7 @@ export function CaptureForm({ onSuccess }: CaptureFormProps) {
       </Card>
 
       <Button type="submit" className="w-full" disabled={submitting}>
-        {submitting ? 'Registrando...' : 'Registrar miembro'}
+        {submitting ? copy.submittingLabel : copy.submitLabel}
       </Button>
     </form>
   )

@@ -81,10 +81,13 @@ jobs:
           # Trigger / crypto tests as postgres (table owner)
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/audit_trigger.test.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/pgcrypto.test.sql
-          # RLS tests must run as non-superuser so policies are enforced
+          # RLS tests must run as non-superuser so policies are enforced.
+          # authenticated cannot SET ROLE anon, so retreat anon/RPC tests run as owner.
           psql "$DB_URL" -v ON_ERROR_STOP=1 \
             -c "SET ROLE authenticated" \
             -f supabase/tests/rls.test.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 \
+            -f supabase/tests/retreat_rls.test.sql
       - name: Stop Supabase
         if: always()
         run: supabase stop --no-backup || true

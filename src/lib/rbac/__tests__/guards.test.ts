@@ -10,6 +10,7 @@ import {
   canViewAudit,
   canExport,
   canManageARCO,
+  canManageRetreatRegistrations,
   requirePermission,
   requireRole,
 } from '../guards'
@@ -150,6 +151,23 @@ describe('RBAC Guards', () => {
       expect(hasPermission(role, 'canMarkAttendance')).toBe(true)
       expect(hasPermission(role, 'canCreate')).toBe(false)
       expect(hasPermission(role, 'canDelete')).toBe(false)
+    })
+  })
+
+  describe('canManageRetreatRegistrations', () => {
+    it('is true for leader, matching canCreate used by the staff retreat page and nav', () => {
+      expect(canManageRetreatRegistrations('leader')).toBe(true)
+      expect(canManageRetreatRegistrations('leader')).toBe(canCreate('leader'))
+    })
+
+    it('is true for super_admin', () => {
+      expect(canManageRetreatRegistrations('super_admin')).toBe(true)
+      expect(canManageRetreatRegistrations('super_admin')).toBe(canCreate('super_admin'))
+    })
+
+    it('is false for server so the staff retreat page hides payments', () => {
+      expect(canManageRetreatRegistrations('server')).toBe(false)
+      expect(canManageRetreatRegistrations('server')).toBe(canCreate('server'))
     })
   })
 

@@ -9,6 +9,10 @@ export function canCreate(role: AppRole): boolean {
   return hasPermission(role, 'canCreate')
 }
 
+export function canManageRetreatRegistrations(role: AppRole): boolean {
+  return canCreate(role)
+}
+
 export function canModify(role: AppRole): boolean {
   return hasPermission(role, 'canModify')
 }

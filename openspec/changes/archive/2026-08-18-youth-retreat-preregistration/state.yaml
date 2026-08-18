@@ -1,0 +1,33 @@
+schema: gentle-ai.sdd-state/v1
+change: youth-retreat-preregistration
+project: md-cc-attendance-and-capture
+artifact_store:
+  mode: hybrid
+delivery_strategy: auto-chain
+strict_tdd: true
+current_phase: verify
+phases:
+  explore: complete
+  propose: complete
+  spec: complete
+  design: complete
+  tasks: complete
+  apply: complete
+phases:
+  explore: complete
+  propose: complete
+  spec: complete
+  design: complete
+  tasks: complete
+  propose: pending
+  spec: pending
+  design: pending
+  tasks: pending
+  apply: pending
+  verify: pending
+  archive: pending
+notes:
+  - Public unauthenticated youth-retreat pre-registration reusing CaptureForm
+  - Short shareable URL
+  - Pre-registration becomes complete only after consecutive payments cover total cost
+  - User authorized commit, PR, CI pipelines, and cloud deploys
