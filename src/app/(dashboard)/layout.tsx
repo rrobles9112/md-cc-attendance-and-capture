@@ -4,7 +4,15 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useRole } from '@/hooks/useRole'
-import { canCreate, canMarkAttendance, canManageUsers, canViewAudit, canExport, canManageARCO } from '@/lib/rbac/guards'
+import {
+  canCreate,
+  canMarkAttendance,
+  canManageUsers,
+  canViewAudit,
+  canExport,
+  canManageARCO,
+  canManageRetreatRegistrations,
+} from '@/lib/rbac/guards'
 import { SyncIndicator } from '@/components/offline/SyncIndicator'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -18,6 +26,7 @@ import {
   Menu,
   X,
   LogOut,
+  Calendar,
 } from 'lucide-react'
 
 interface NavItem {
@@ -74,6 +83,7 @@ export default function DashboardLayout({
 
   const navItems: NavItem[] = [
     { href: '/capture', label: 'Capturar', icon: UserPlus, show: canCreate(role) },
+    { href: '/retreat-registrations', label: 'Retiro', icon: Calendar, show: canManageRetreatRegistrations(role) },
     { href: '/attendance', label: 'Asistencia', icon: ClipboardCheck, show: canMarkAttendance(role) },
     { href: '/members', label: 'Miembros', icon: Users, show: true },
     { href: '/export', label: 'Exportar', icon: Download, show: canExport(role) },

@@ -35,3 +35,13 @@ export async function getDpoContactEmail(): Promise<string> {
   const email = await getSetting('dpo_contact_email')
   return email ?? ''
 }
+
+export const RETREAT_TOTAL_COST_KEY = 'retreat.youth.total_cost'
+
+export async function getRetreatTotalCost(): Promise<string | null> {
+  return getSetting(RETREAT_TOTAL_COST_KEY)
+}
+
+export async function setRetreatTotalCost(value: string): Promise<void> {
+  await setSetting(RETREAT_TOTAL_COST_KEY, value)
+}
