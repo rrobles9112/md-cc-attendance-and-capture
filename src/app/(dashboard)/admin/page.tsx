@@ -25,6 +25,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { toast } from 'sonner'
+import { UsersPanel } from '@/components/admin/UsersPanel'
 
 type AdminTab = 'users' | 'audit' | 'arco' | 'settings' | 'sync' | 'purge'
 
@@ -33,6 +34,7 @@ export default function AdminPage() {
   const { status: syncStatus, pendingCount } = useSync()
   const [activeTab, setActiveTab] = useState<AdminTab>('users')
   const [users, setUsers] = useState<Array<{ id: string; full_name: string; role: string; is_active: boolean; created_at: string }>>([])
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [auditLogs, setAuditLogs] = useState<Array<{ id: number; user_id: string; action: string; table_name: string; record_id: string; created_at: string }>>([])
   const [auditFilter, setAuditFilter] = useState({ table: '', action: '', date: '' })
   const [arcoRequests, setArcoRequests] = useState<Array<{ id: string; member_id: string | null; request_type: string; status: string; deadline: string; notes: string | null }>>([])
@@ -42,8 +44,12 @@ export default function AdminPage() {
 
   const loadUsers = useCallback(async () => {
     const supabase = createClient()
-    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
+    const [{ data }, { data: sessionData }] = await Promise.all([
+      supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+      supabase.auth.getSession(),
+    ])
     if (data) setUsers(data)
+    setCurrentUserId(sessionData.session?.user.id ?? null)
   }, [])
 
   const loadAuditLogs = useCallback(async () => {
@@ -92,20 +98,6 @@ export default function AdminPage() {
   useCacheHydration(() => {
     if (activeTab === 'purge') void loadPurgeableCount()
   })
-
-  async function handleRoleChange(userId: string, newRole: string) {
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role: newRole, updated_at: new Date().toISOString() })
-      .eq('id', userId)
-    if (error) {
-      toast.error('Error al actualizar el rol')
-      return
-    }
-    toast.success('Rol actualizado')
-    loadUsers()
-  }
 
   async function handleSaveDpoEmail() {
     try {
@@ -204,46 +196,7 @@ export default function AdminPage() {
             <CardDescription>Administrar roles de usuarios del sistema</CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Rol</TableHead>
-                  <TableHead className="hidden sm:table-cell">Estado</TableHead>
-                  <TableHead className="hidden md:table-cell">Registro</TableHead>
-                  <TableHead>Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.full_name}</TableCell>
-                    <TableCell>
-                      <select
-                        value={user.role}
-                        onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                        className="rounded border px-2 py-1 text-sm"
-                      >
-                        <option value="super_admin">Super Admin</option>
-                        <option value="leader">Líder</option>
-                        <option value="server">Servidor</option>
-                      </select>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <Badge variant={user.is_active ? 'default' : 'destructive'}>
-                        {user.is_active ? 'Activo' : 'Inactivo'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                      {new Date(user.created_at).toLocaleDateString('es-CO')}
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm">Editar</Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <UsersPanel users={users} currentUserId={currentUserId} onChanged={loadUsers} />
           </CardContent>
         </Card>
       )}
