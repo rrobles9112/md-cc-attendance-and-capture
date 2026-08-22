@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { db, type Member, type SocialMedia, type WhatsAppNumber } from '@/lib/sync/db'
 import { useRealtime } from '@/hooks/useRealtime'
 import { useCacheHydration } from '@/hooks/useCacheHydration'
@@ -28,6 +28,8 @@ import {
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { Trash2, Eye } from 'lucide-react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { getBirthdaysOfMonth, getNewMembers } from '@/lib/members/highlights'
 
 export default function MembersPage() {
   const { role } = useRole()
@@ -91,6 +93,9 @@ export default function MembersPage() {
     m.email.toLowerCase().includes(search.toLowerCase())
   )
 
+  const birthdaysOfMonth = useMemo(() => getBirthdaysOfMonth(members), [members])
+  const newMembers = useMemo(() => getNewMembers(members), [members])
+
   return (
     <div className="space-y-6">
       <div>
@@ -107,10 +112,64 @@ export default function MembersPage() {
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm"
         />
-        <Badge variant="outline">{filteredMembers.length} miembros</Badge>
-      </div>
+            <Badge variant="outline">{filteredMembers.length} miembros</Badge>
+          </div>
 
-      <div className="rounded-lg border">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  🎂 Cumpleaños del mes
+                  <Badge variant="outline">{birthdaysOfMonth.length}</Badge>
+                </CardTitle>
+                <CardDescription>Miembros que cumplen años este mes</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {birthdaysOfMonth.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sin cumpleaños este mes</p>
+                ) : (
+                  <ul className="space-y-1 text-sm">
+                    {birthdaysOfMonth.map((highlight) => (
+                      <li key={highlight.id}>
+                        <span className="font-medium">{highlight.day}</span>
+                        {' — '}
+                        {highlight.name}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  ✨ Nuevos inscritos
+                  <Badge variant="outline">{newMembers.length}</Badge>
+                </CardTitle>
+                <CardDescription>Inscripciones de los últimos 30 días</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {newMembers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Sin inscripciones en los últimos 30 días
+                  </p>
+                ) : (
+                  <ul className="space-y-1 text-sm">
+                    {newMembers.map((highlight) => (
+                      <li key={highlight.id}>
+                        <span className="font-medium">{highlight.name}</span>
+                        {' — '}
+                        {new Date(highlight.date).toLocaleDateString('es-CO')}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="rounded-lg border">
         <Table>
           <TableHeader>
             <TableRow>
