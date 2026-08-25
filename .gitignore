@@ -46,3 +46,4 @@ supabase/.temp
 .idea/
 # Local Pi runtime state
 .atl/
+.codegraph/
