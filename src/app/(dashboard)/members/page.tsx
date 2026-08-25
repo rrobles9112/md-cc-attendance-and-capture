@@ -40,6 +40,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getBirthdaysOfMonth, getNewMembers } from "@/lib/members/highlights";
 
 export default function MembersPage() {
@@ -122,81 +123,39 @@ export default function MembersPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Miembros</h1>
         <p className="text-muted-foreground">
-          Lista de todos los miembros registrados
+          Gestiona el directorio y consulta los destacados en vistas
+          separadas
         </p>
       </div>
 
-      <div className="flex items-center gap-3">
-        <Input
-          placeholder="Buscar por nombre, teléfono o correo..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
-        />
-        <Badge variant="outline">{filteredMembers.length} miembros</Badge>
-      </div>
+      <Tabs defaultValue="directory" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="directory">
+            Directorio
+            <Badge variant="secondary" className="ml-2">
+              {filteredMembers.length}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="highlights">
+            Destacados
+            <Badge variant="secondary" className="ml-2">
+              {birthdaysOfMonth.length + newMembers.length}
+            </Badge>
+          </TabsTrigger>
+        </TabsList>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              🎂 Cumpleaños del mes
-              <Badge variant="outline">{birthdaysOfMonth.length}</Badge>
-            </CardTitle>
-            <CardDescription>
-              Miembros que cumplen años este mes
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {birthdaysOfMonth.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Sin cumpleaños este mes
-              </p>
-            ) : (
-              <ul className="space-y-1 text-sm">
-                {birthdaysOfMonth.map((highlight) => (
-                  <li key={highlight.id}>
-                    <span className="font-medium">{highlight.day}</span>
-                    {" — "}
-                    {highlight.name}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+        <TabsContent value="directory" className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Input
+              placeholder="Buscar por nombre, teléfono o correo..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="max-w-sm"
+            />
+            <Badge variant="outline">{filteredMembers.length} miembros</Badge>
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              ✨ Nuevos inscritos
-              <Badge variant="outline">{newMembers.length}</Badge>
-            </CardTitle>
-            <CardDescription>
-              Inscripciones de los últimos 30 días
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {newMembers.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Sin inscripciones en los últimos 30 días
-              </p>
-            ) : (
-              <ul className="space-y-1 text-sm">
-                {newMembers.map((highlight) => (
-                  <li key={highlight.id}>
-                    <span className="font-medium">{highlight.name}</span>
-                    {" — "}
-                    {new Date(highlight.date).toLocaleDateString("es-CO")}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="rounded-lg border">
+          <div className="rounded-lg border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -284,6 +243,70 @@ export default function MembersPage() {
           </TableBody>
         </Table>
       </div>
+        </TabsContent>
+
+        <TabsContent value="highlights" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  🎂 Cumpleaños del mes
+                  <Badge variant="outline">{birthdaysOfMonth.length}</Badge>
+                </CardTitle>
+                <CardDescription>
+                  Miembros que cumplen años este mes
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {birthdaysOfMonth.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Sin cumpleaños este mes
+                  </p>
+                ) : (
+                  <ul className="space-y-1 text-sm">
+                    {birthdaysOfMonth.map((highlight) => (
+                      <li key={highlight.id}>
+                        <span className="font-medium">{highlight.day}</span>
+                        {" — "}
+                        {highlight.name}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  ✨ Nuevos inscritos
+                  <Badge variant="outline">{newMembers.length}</Badge>
+                </CardTitle>
+                <CardDescription>
+                  Inscripciones de los últimos 30 días
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {newMembers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Sin inscripciones en los últimos 30 días
+                  </p>
+                ) : (
+                  <ul className="space-y-1 text-sm">
+                    {newMembers.map((highlight) => (
+                      <li key={highlight.id}>
+                        <span className="font-medium">{highlight.name}</span>
+                        {" — "}
+                        {new Date(highlight.date).toLocaleDateString("es-CO")}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <Dialog
         open={!!selectedMember}
