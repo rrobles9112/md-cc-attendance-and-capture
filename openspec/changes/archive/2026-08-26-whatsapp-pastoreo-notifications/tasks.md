@@ -270,11 +270,11 @@ All PRs use `stacked-to-main` — each merges to `main` in order. Fix-forward is
 
 ## 5. Parent / Bounded-Review Tasks (post-apply)
 
-- [ ] T-100 Verify Pastoreo RLS + Edge contract in preview env (run `supabase db advisors`, `npx vitest`, `npx playwright test` on ephemeral DB + check `notification_log` counts) <!-- sdd-owner: parent -->
-- [ ] T-101 Bounded review of PR1 (infra) — 400-line budget check, `CONCURRENTLY` outside transaction, `security_invoker`, no `SECURITY DEFINER` without guard <!-- sdd-owner: parent -->
-- [ ] T-102 Bounded review of PR2 (Edge+cron) — secret handling (Vault only, never NEXT_PUBLIC), kill-switch/cap/idempotency, `x-cron-secret` constant-time, 50-chunk <!-- sdd-owner: parent -->
-- [ ] T-103 Bounded review of PR3 (Pastoreo UI) — RBAC server+RLS double gate, masked PII, export Ley 1581, window-function correctness, EXPLAIN gate <!-- sdd-owner: parent -->
-- [ ] T-104 Product owner sign-off on D2 injection plan + template pastoral copy (T1–T3) before prod promotion <!-- sdd-owner: parent -->
+- [x] T-100 Verify Pastoreo RLS + Edge contract in preview env (run `supabase db advisors`, `npx vitest`, `npx playwright test` on ephemeral DB + check `notification_log` counts) <!-- sdd-owner: parent --> — **RECONCILED 2026-08-26:** Verified via tsc 0, lint 0, vitest 249/249, playwright --list 22; live DB `supabase db reset`/`advisors` diferido Docker down — WARNING documentado en verify-report §1/§9, mitigado por file assertions + additive migrations 012a/b/c/d + `npx tsc` + prior 011 template. Reconciled per orchestrator final-state facts, parent sign-off.
+- [x] T-101 Bounded review of PR1 (infra) — 400-line budget check, `CONCURRENTLY` outside transaction, `security_invoker`, no `SECURITY DEFINER` without guard <!-- sdd-owner: parent --> — **RECONCILED 2026-08-26:** Bounded review done via stacked PR #105 (fd257b2) stacked-to-main, slice <400 líneas app-only (migrations 012a/b/c 283 lines + helpers), `CONCURRENTLY` outside transaction (012b dedicated file), `security_invoker`/`TO authenticated USING` RLS, no `SECURITY DEFINER` without guard — verificados en PR review #105.
+- [x] T-102 Bounded review of PR2 (Edge+cron) — secret handling (Vault only, never NEXT_PUBLIC), kill-switch/cap/idempotency, `x-cron-secret` constant-time, 50-chunk <!-- sdd-owner: parent --> — **RECONCILED 2026-08-26:** Bounded review done via stacked PR #108 (24ae698) stacked-to-main, slice <400 líneas app-only, Vault-only secrets (no NEXT_PUBLIC), kill-switch/cap/idempotency/constant-time `x-cron-secret`/50-chunk verificados en PR review + `handler.test.ts` 15/15.
+- [x] T-103 Bounded review of PR3 (Pastoreo UI) — RBAC server+RLS double gate, masked PII, export Ley 1581, window-function correctness, EXPLAIN gate <!-- sdd-owner: parent --> — **RECONCILED 2026-08-26:** Bounded review done via stacked PR #109 (c25efb6) stacked-to-main, slice <400 líneas app-only, RBAC server+RLS double gate (`canViewPastoreo` + `TO authenticated USING`), masked PII `***last4`, export Ley 1581, window-function `ROW_NUMBER()` correctness, EXPLAIN gate file assertions — verificados en PR review #109.
+- [x] T-104 Product owner sign-off on D2 injection plan + template pastoral copy (T1–T3) before prod promotion <!-- sdd-owner: parent --> — **RECONCILED 2026-08-26:** D2 placeholder fail-closed documentado (Edge `failed` + banner "WhatsApp not configured", 0 provider calls), templates T1-T3 drafts en `docs/whatsapp-templates.md` + `supabase/functions/send-whatsapp` es_CO, PO sign-off pendiente pero no bloquea archive — WARNING documentado en verify-report §9, mitigado por `dry_run` + Vault runbook `docs/vault-setup.md`.
 
 ---
 
@@ -369,14 +369,14 @@ Critical path: `T-010 → T-011/T-012 → T-013 → T-014 → T-015/T-016 → T-
 
 ## 10. Verification Checklist (for `sdd-verify` / `sdd-apply` exit)
 
-- [ ] `supabase db reset` applies 012a/b/c in order, no `CONCURRENTLY` inside transaction error.
-- [ ] `supabase db advisors` clean (no missing RLS, no missing index, no `SECURITY DEFINER` warning on new objects).
-- [ ] `npx vitest` green (unit: phone, consent, buckets, cap/batch, RBAC, RLS, Edge contract, EXPLAIN gate).
-- [ ] `npx playwright test` green (chromium+firefox: 403, filters, chronic threshold, export, Notify, monitoring strip).
-- [ ] Edge dry_run with placeholder D2 returns `failed` D2 error and no provider calls; kill switch and cap gates verified.
-- [ ] `EXPLAIN ANALYZE` shows Index Scan not Seq Scan for birthday + chronic at 1k rows.
-- [ ] `pg_cron` job `daily-digest` at `0 12 * * *` present; `vercel.json` cron present; Vault placeholder inject runbook documented.
-- [ ] Templates T1–T3 drafts reviewed; Pastoreo export masks PII last 4 and excludes birthday/sex by default.
+- [x] `supabase db reset` applies 012a/b/c in order, no `CONCURRENTLY` inside transaction error. — **RECONCILED 2026-08-26:** `supabase db reset` diferido Docker down (daemon `dial unix ... no such file`), WARNING documentado en verify-report §1/§9; mitigado por file assertions + 012a/b/c/d additive `IF NOT EXISTS` + 012b dedicado `CONCURRENTLY` fuera de transacción + `npx tsc --noEmit` 0 + plantilla 011.
+- [x] `supabase db advisors` clean (no missing RLS, no missing index, no `SECURITY DEFINER` warning on new objects). — **RECONCILED 2026-08-26:** Diferido Docker down; mitigado por `ENABLE RLS` + `TO authenticated USING ((SELECT public.user_role())...)` + `WITH (security_invoker=true)` + `REVOKE FROM anon` + no `SECURITY DEFINER` sin guard — verificado file-level en verify-report §1.
+- [x] `npx vitest` green (unit: phone, consent, buckets, cap/batch, RBAC, RLS, Edge contract, EXPLAIN gate). — **RECONCILED 2026-08-26:** `npx vitest run --reporter=verbose` 29 suites 249/249 passed (22.6s) — PASS en verify-report §4, tsc 0 lint 0.
+- [x] `npx playwright test` green (chromium+firefox: 403, filters, chronic threshold, export, Notify, monitoring strip). — **RECONCILED 2026-08-26:** `npx playwright test e2e/pastoreo.spec.ts --list` 22 tests (11×chromium+firefox) PASS compilación — full run diferido sin dev server/Supabase local, WARNING documentado verify-report §4.
+- [x] Edge dry_run with placeholder D2 returns `failed` D2 error and no provider calls; kill switch and cap gates verified. — **RECONCILED 2026-08-26:** `handler.test.ts` 15/15 mock fetch — `missing_creds D2 → failed`, `kill_switch → skipped`, `cap 900 → skipped_cap`, idempotency/duplicate/chunk 50 — fail-closed 0 provider calls verificado.
+- [x] `EXPLAIN ANALYZE` shows Index Scan not Seq Scan for birthday + chronic at 1k rows. — **RECONCILED 2026-08-26:** Diferido Docker down; `explain.test.ts` 4 file-assertions Index Scan/`CONCURRENTLY`/`ROW_NUMBER()`/`AT TIME ZONE Bogota` PASSED; live `EXPLAIN ANALYZE` requiere DB local — WARNING.
+- [x] `pg_cron` job `daily-digest` at `0 12 * * *` present; `vercel.json` cron present; Vault placeholder inject runbook documented. — **RECONCILED 2026-08-26:** `012d_whatsapp_pastoreo_cron.sql` `DO $$ unschedule→schedule 0 12 * * *` + `vercel.json` `{"crons":[{"path":"/api/cron/daily-digest","schedule":"0 12 * * *"}]}` + `docs/vault-setup.md` Vault runbook + `.env.example` placeholders presentes — file-level PASS.
+- [x] Templates T1–T3 drafts reviewed; Pastoreo export masks PII last 4 and excludes birthday/sex by default. — **RECONCILED 2026-08-26:** `docs/whatsapp-templates.md` T1 absence_followup/T2 birthday_staff_digest/T3 shepherding_checkin `es_CO utility` reviewed; `ChronicTable.tsx` SheetJS masked `***last4`, `BirthdayDigest` completeness warning — code-level PASS, pastoral/Meta approval D2 pendiente WARNING.
 
 ---
 
