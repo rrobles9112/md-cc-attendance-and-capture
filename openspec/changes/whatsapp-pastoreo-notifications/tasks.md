@@ -117,7 +117,7 @@ All PRs use `stacked-to-main` — each merges to `main` in order. Fix-forward is
   - **Estimate:** S
   - **Trace:** Spec Pastoreo Queries Indexes; Design §2.7/§5.9.
 
-- [ ] T-009 RED — Playwright E2E skeletons (`e2e/pastoreo.spec.ts`) <!-- sdd-owner: implementation -->
+- [x] T-009 RED — Playwright E2E skeletons (`e2e/pastoreo.spec.ts`) <!-- sdd-owner: implementation -->
   - **Description:** Failing E2E (chromium, firefox per config): `server`→`/(dashboard)/pastoreo` 403/redirect, `leader`→Renders Resumen + filters mutate URL, chronic table respects threshold, export downloads `.xlsx`, birthday tab shows completeness warning, monitoring strip shows mocked `notification_log` counts. Seeded via Supabase local.
   - **Acceptance:** Fails before route exists (404); passes after PR3.
   - **Dependencies:** none.
@@ -190,35 +190,35 @@ All PRs use `stacked-to-main` — each merges to `main` in order. Fix-forward is
 
 ### PR3 — Pastoreo UI (T-018 → T-023)
 
-- [ ] T-018 GREEN — RBAC + nav + route shell (`src/lib/rbac/guards.ts`, `src/app/(dashboard)/layout.tsx`, `src/app/(dashboard)/pastoreo/page.tsx`) <!-- sdd-owner: implementation -->
+- [x] T-018 GREEN — RBAC + nav + route shell (`src/lib/rbac/guards.ts`, `src/app/(dashboard)/layout.tsx`, `src/app/(dashboard)/pastoreo/page.tsx`) <!-- sdd-owner: implementation -->
   - **Description:** Add `canViewPastoreo(role): role IN ('super_admin','leader')` to `guards.ts` (T-005). Add nav item `Pastoreo` (icon `HeartHandshake` or `Users`) gated by `canViewPastoreo` in `layout.tsx` sidebar. Create `src/app/(dashboard)/pastoreo/page.tsx` Server Component: `createServerClient` (RLS-aware), route guard `if (!canViewPastoreo(role)) redirect('/dashboard?error=insufficient-permission')` (server denial, RLS is enforcement per spec Actors), parse URL params (`age`, `sex`, `from`, `to`, `tab`), fetch Resumen KPIs + `notification_log` monitoring strip (today `sent/skipped/failed/cap`, last `cron.job_run_details`), render banners (`whatsapp_enabled=false`, cap 800 warning / 900 block, missing creds D2). Server-only secrets.
   - **Acceptance:** `server` → `/pastoreo` redirects with notice and gets 0 rows from view; `leader`/`super_admin` →200. Nav hidden for `server`. `npx tsc --noEmit` passes.
   - **Dependencies:** T-012, T-005, T-013.
   - **Estimate:** M
   - **Trace:** Spec US3, Actors matrix, Non-Functional observability; Design §5.1/§5.2/§5.7/§5.8.
 
-- [ ] T-019 GREEN — Filters + tabs client islands (`src/app/(dashboard)/pastoreo/_components/Filters.tsx`, `ResumenTab.tsx`, `BirthdayTab.tsx`) <!-- sdd-owner: implementation -->
+- [x] T-019 GREEN — Filters + tabs client islands (`src/app/(dashboard)/pastoreo/_components/Filters.tsx`, `ResumenTab.tsx`, `BirthdayTab.tsx`) <!-- sdd-owner: implementation -->
   - **Description:** Client islands (`'use client'`) for filters: `age_bucket` multi-select chips (derived `age_years` CASE per spec Pastoreo Queries), `sex` multi-select (M/F/other/prefer_not_to_say → NULL bucket), `date range` preset 4/8/12 weeks + custom `from`/`to`, tab switch `Resumen|Ausentes crónicos|Cumpleaños`. URL-synced via `nuqs` or `useSearchParams`+`useRouter`, Server Components re-fetch via `router.refresh()`. `ResumenTab`: KPI cards + bar charts by age bucket/sex/week (recharts or existing lib) fed by Server data. `BirthdayTab`: upcoming 30 days + completeness warning `"N members without birthday"` with link to data-quality. All queries include `WHERE deleted_at IS NULL` and `session_date BETWEEN :from AND :to`, parametrized (not client-filtered).
   - **Acceptance:** Selecting `age=18-25, sex=F` updates URL and Server KPIs match `WHERE age_years CASE AND sex='F'`; T-003 bucket helpers used; Playwright filter test passes.
   - **Dependencies:** T-018.
   - **Estimate:** M
   - **Trace:** Spec US3 Filters, Pastoreo Queries; Design §5.3/§5.5.
 
-- [ ] T-020 GREEN — Chronic table + window-function query (`src/app/(dashboard)/pastoreo/_components/ChronicTable.tsx`, query in `src/lib/pastoreo/queries.ts`) <!-- sdd-owner: implementation -->
+- [x] T-020 GREEN — Chronic table + window-function query (`src/app/(dashboard)/pastoreo/_components/ChronicTable.tsx`, query in `src/lib/pastoreo/queries.ts`) <!-- sdd-owner: implementation -->
   - **Description:** Implement chronic query per spec Pastoreo Queries / design §5.4: `≥1 attendance in last lookback_days (90 default, from app_settings) AND ≥threshold (3) consecutive misses by session_date ROW_NUMBER() order` (not calendar Saturdays). Parametrized `threshold`/`lookback_days` read from `app_settings` at query time (no migration to retune). Display: `name, age (age_years), sex, last_attended_date, missed_streak, wa_number masked ***1234 (via maskPhone)`, actions `Notify` + `View history`. Server Component fetch with `security_invoker` if view used. `NULL sex` → "No especificado". Test threshold change `3→2` without DDL scenario.
   - **Acceptance:** Member with 3 misses appears, 2 misses does not; changing `app_settings.pastoreo_chronic_threshold='2'` makes 2-miss members appear; `EXPLAIN` shows `Index Scan` on attendance/session indexes; Playwright chronic table passes.
   - **Dependencies:** T-018, T-011 (indexes).
   - **Estimate:** M
   - **Trace:** Spec US3 Chronic, Data Contracts; Design §5.4/§11.1.
 
-- [ ] T-021 GREEN — Export + Notify action (`src/app/(dashboard)/pastoreo/_components/ChronicTable.tsx` export, SheetJS, Edge invoke) <!-- sdd-owner: implementation -->
+- [x] T-021 GREEN — Export + Notify action (`src/app/(dashboard)/pastoreo/_components/ChronicTable.tsx` export, SheetJS, Edge invoke) <!-- sdd-owner: implementation -->
   - **Description:** Export button: SheetJS `xlsx` client-side (reuse `src/lib/export` pattern) — downloads `.xlsx` with same N filtered rows, columns `name, age, sex, last_attended_date, missed_streak, wa_number(masked)` — `birthday`/`sex` raw excluded from default unless `super_admin` checks explicit opt-in (audit note). Notify button: bulk select (1..50 per call, >50 chunks sequential) → `supabase.functions.invoke('send-whatsapp', { body: { kind:'shepherding_checkin', member_ids, template_name:'shepherding_checkin', custom_params:{community_name} } })` under `leader`/`super_admin` JWT, per-row consent/phone/cap gate, `notification_log.created_by=auth.uid()`, toast + inline `sent/skipped/failed` feedback.
   - **Acceptance:** Export N rows match table N; opening `.xlsx` has masked phones; Notify with 5 members writes 5 `notification_log` rows with `created_by`; 120 members chunks 50/50/20.
   - **Dependencies:** T-014, T-020.
   - **Estimate:** M
   - **Trace:** Spec US3 Export, Manual Notify; Design §5.5/§5.6.
 
-- [ ] T-022 GREEN — Monitoring strip + consent UX wiring (`src/app/(dashboard)/pastoreo/_components/MonitoringStrip.tsx`, capture bulk toggle) <!-- sdd-owner: implementation -->
+- [x] T-022 GREEN — Monitoring strip + consent UX wiring (`src/app/(dashboard)/pastoreo/_components/MonitoringStrip.tsx`, capture bulk toggle) <!-- sdd-owner: implementation -->
   - **Description:** Monitoring strip Server Component (super_admin only) querying `notification_log GROUP BY status` for today Bogota + monthly cap + `cron.job_run_details` last 5 runs; banners for `whatsapp_enabled=false`, `800/900` cap approaching/reached, missing creds D2. Capture form checkbox for `whatsapp_opt_in` with Ley 1581 purpose text + `consent_records` insert (`whatsapp_messaging`, `policy_version`, `accepted_at`, `ip_address`); bulk admin toggle in members edit / Pastoreo sets `whatsapp_opt_out_at` on revoke and clears on re-opt with new consent row.
   - **Acceptance:** `sent_this_month=800` shows warning banner, `900` shows destructive block; `dpo_contact_email` seeded; consent insert creates `consent_records` row with `v1.0` + IP.
   - **Dependencies:** T-018, T-010.
@@ -229,21 +229,21 @@ All PRs use `stacked-to-main` — each merges to `main` in order. Fix-forward is
 
 ## 4. Tasks — Templates + Hardening + Verification
 
-- [ ] T-023 GREEN — WhatsApp templates drafts + submission prep (`docs/whatsapp-templates.md` or `supabase/functions/send-whatsapp/templates.ts`) <!-- sdd-owner: implementation -->
+- [x] T-023 GREEN — WhatsApp templates drafts + submission prep (`docs/whatsapp-templates.md` or `supabase/functions/send-whatsapp/templates.ts`) <!-- sdd-owner: implementation -->
   - **Description:** Draft 3 utility `es_CO` templates per spec §WhatsApp Templates: T1 `absence_followup` (`Hola {{1}}, te extrañamos ayer en {{2}} ({{3}})...`), T2 `birthday_staff_digest` (`🎂 Hoy cumplen años: {{1}}...`), T3 `shepherding_checkin` (`Hola {{1}}, somos de {{2}}...`). Variables: `{{1}}=name`, `{{2}}=session name`, `{{3}}=DD/MM/YYYY` (Bogota locale `toLocaleDateString('es-CO', {timeZone:'America/Bogota'})`), digest `{{1}}=comma "Juan (35), María (40)"` with `age_today`. Document submission steps in Meta Business Manager (utility, `es_CO`, variable samples), dev Twilio sandbox / Meta test number usage, fallback resubmit if rejected. Mark prod approval as D2-blocked (pending Business number). No code dependency.
   - **Acceptance:** `docs/whatsapp-templates.md` has 3 templates with language/category/variables/copy EN+ES; submission steps listed; dev sandbox noted as no-approval.
   - **Dependencies:** none (draft early, blocks prod only).
   - **Estimate:** S
   - **Trace:** Spec WhatsApp Templates, Dependencies D2; Design §6.
 
-- [ ] T-024 GREEN — EXPLAIN gate + performance verification (`src/lib/pastoreo/__tests__/explain.test.ts` GREEN) <!-- sdd-owner: implementation -->
+- [x] T-024 GREEN — EXPLAIN gate + performance verification (`src/lib/pastoreo/__tests__/explain.test.ts` GREEN) <!-- sdd-owner: implementation -->
   - **Description:** Make T-008 pass: run `EXPLAIN (FORMAT JSON)` for birthday daily scan and chronic query against seeded 1k members/1k sessions; assert `Index Scan`/`Index Only Scan` (no `Seq Scan`). Document that materialized view `mv_pastoreo_stats` is deferred until `EXPLAIN ANALYZE >100ms` at >10k members (proposal N4/D11/spec Pastoreo Queries).
   - **Acceptance:** `npx vitest run src/lib/pastoreo/__tests__/explain.test.ts` passes locally with `supabase start`; CI skips if DB unavailable but logs reason.
   - **Dependencies:** T-011.
   - **Estimate:** S
   - **Trace:** Spec Pastoreo Queries, Non-Functional; Design §5.9/§11.6.
 
-- [ ] T-025 GREEN — Docs & runbook (`docs/whatsapp-runbook.md`, `README.md` pastoreo section) <!-- sdd-owner: implementation -->
+- [x] T-025 GREEN — Docs & runbook (`docs/whatsapp-runbook.md`, `README.md` pastoreo section) <!-- sdd-owner: implementation -->
   - **Description:** Write ops runbook: D2 injection without migration (Vault `WHATSAPP_PHONE_NUMBER_ID` + `app_settings` + `supabase secrets set` + redeploy, fail-closed banner), kill switch `UPDATE app_settings SET value='false' WHERE key='whatsapp_enabled'`, cron disable `SELECT cron.unschedule`, cap tuning, phone normalization troubleshooting, Ley 1581 audit trail (`notification_log` + `consent_records` + `audit_log` trigger), rotation, monitoring queries. Update `README.md` or `docs/vault-setup.md` with Pastoreo env/secrets table.
   - **Acceptance:** Runbook has copy-paste `vault.create_secret` / `supabase secrets set` / `cron.schedule` snippets and banner screenshots description; no secrets in repo.
   - **Dependencies:** T-017.
@@ -252,14 +252,14 @@ All PRs use `stacked-to-main` — each merges to `main` in order. Fix-forward is
 
 ### TRIANGULATE & REFACTOR (after GREEN, before verify)
 
-- [ ] T-026 TRIANGULATE — Edge cases + Feb29 + timezone + zero-attendance (`src/lib/whatsapp/__tests__/edge-cases.test.ts` + Playwright timezone seam) <!-- sdd-owner: implementation -->
+- [x] T-026 TRIANGULATE — Edge cases + Feb29 + timezone + zero-attendance (`src/lib/whatsapp/__tests__/edge-cases.test.ts` + Playwright timezone seam) <!-- sdd-owner: implementation -->
   - **Description:** Add triangulating tests beyond happy path: `session with 0 attendance rows`→all active considered absent (anti-join + warning log), `deleted session` excluded, `birthday IS NULL` excluded + completeness warning, `Feb29→Feb28` non-leap inclusion and `Feb29` in leap year, `offline sync delay` note (07:00 window), `session_date` vs `created_at` correctness at UTC boundary (`2026-08-23` Saturday → Sunday 12:00 UTC), `age_years NULL` bucket handling. Assert Edge logs warning for 0-row session.
   - **Acceptance:** All edge tests pass; Playwright seeds Saturday session and asserts Sunday Bogota query finds it via `AT TIME ZONE`.
   - **Dependencies:** T-014, T-020.
   - **Estimate:** S
   - **Trace:** Spec US1/US2 edge scenarios, Risks; Design §8.5.
 
-- [ ] T-027 REFACTOR — Consolidate Pastoreo queries + deduplicate phone helper (refactor pass) <!-- sdd-owner: implementation -->
+- [x] T-027 REFACTOR — Consolidate Pastoreo queries + deduplicate phone helper (refactor pass) <!-- sdd-owner: implementation -->
   - **Description:** Refactor for readability without behavior change: extract `src/lib/pastoreo/queries.ts` (age bucket CASE, sex, chronic, birthday MM-DD with `is_leap_year`) shared by Server Components and Edge; deduplicate E.164 logic between `src/lib/phone/normalize.ts` and Edge (shared via `supabase/functions/_shared/phone.ts` symlink or copy with test parity); ensure `security_invoker` and `TO authenticated USING` remain; run `npx vitest`, `npx tsc --noEmit`, `npx next lint`, `supabase db advisors` clean.
   - **Acceptance:** No test regressions; duplication reduced; advisors clean; `npx vitest` green.
   - **Dependencies:** All GREEN tasks done.

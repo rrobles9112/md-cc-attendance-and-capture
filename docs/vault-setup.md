@@ -164,6 +164,56 @@ To rotate the encryption key:
 
 > **Note**: Key rotation requires a maintenance window. Schedule during low-usage hours. The old key must remain available until all data is re-encrypted.
 
+## WhatsApp Pastoreo Secrets (D2, T-017)
+
+Injection requires no migration — Vault + `supabase secrets set` + Edge redeploy only. Fail-closed when missing (`whatsapp_enabled=true` but no creds → Edge returns `failed` + Pastoreo banner "WhatsApp no configurado — D2 pending", no provider calls).
+
+### Required Vault secrets
+
+| Secret | Value placeholder | Used by |
+| ------ | ----------------- | ------- |
+| `WHATSAPP_TOKEN` | system-user access token from Meta Business | Edge `send-whatsapp` `Authorization: Bearer` to Graph API |
+| `WHATSAPP_PHONE_NUMBER_ID` | Meta `phone_number_id` (or Twilio sandbox / Meta test number in dev) | Edge `POST https://graph.facebook.com/v20.0/{phone_number_id}/messages` |
+| `CRON_SECRET` | random 32+ chars (`openssl rand -hex 32`) | `pg_cron` `x-cron-secret` and Vercel `/api/cron/daily-digest` `Authorization: Bearer` |
+
+### Create placeholder secrets (D2 pending)
+
+```sql
+-- Via SQL (service_role)
+SELECT vault.create_secret('', 'WHATSAPP_TOKEN', 'Meta system-user token — D2 pending');
+SELECT vault.create_secret('', 'WHATSAPP_PHONE_NUMBER_ID', 'Meta phone_number_id — D2 pending');
+SELECT vault.create_secret(replace(gen_random_uuid()::text,'-',''), 'CRON_SECRET', 'Shared secret for pg_cron / Vercel Cron');
+```
+
+### Inject real values (no migration)
+
+```bash
+supabase secrets set WHATSAPP_TOKEN="<real-token>" WHATSAPP_PHONE_NUMBER_ID="<real-id>" CRON_SECRET="<random>"
+# also mirror to app_settings fallback (readable flag for Pastoreo banner):
+psql -c "UPDATE app_settings SET value='<real-id>' WHERE key='whatsapp_phone_number_id'"
+supabase functions deploy send-whatsapp --no-verify-jwt
+```
+
+### Verify
+
+```sql
+SELECT name FROM vault.decrypted_secrets; -- service_role only, expect 3 names
+SELECT key, left(value,8) FROM app_settings WHERE key LIKE 'whatsapp_%';
+```
+
+### Kill switch & cap
+
+```sql
+-- Pause all sends without redeploy
+UPDATE app_settings SET value='false' WHERE key='whatsapp_enabled';
+-- Tune cap without migration
+UPDATE app_settings SET value='900' WHERE key='whatsapp_monthly_cap';
+UPDATE app_settings SET value='800' WHERE key='whatsapp_monthly_alert_at';
+-- Pastoreo chronic tuning
+UPDATE app_settings SET value='3' WHERE key='pastoreo_chronic_threshold';
+UPDATE app_settings SET value='90' WHERE key='pastoreo_chronic_lookback_days';
+```
+
 ## Troubleshooting
 
 | Issue | Solution |
