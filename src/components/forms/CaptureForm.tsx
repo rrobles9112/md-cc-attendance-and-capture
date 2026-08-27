@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -52,10 +52,13 @@ export type CaptureSubmitPayload = {
   communityName: string
 }
 
+export type CaptureFormInitialValues = Partial<CaptureSubmitPayload>
+
 export interface CaptureFormProps {
   onSuccess?: () => void
   variant?: CaptureFormVariant
   submitAdapter?: (payload: CaptureSubmitPayload) => Promise<void>
+  initialValues?: CaptureFormInitialValues
 }
 
 function captureFormConfig(variant: CaptureFormVariant) {
@@ -91,6 +94,7 @@ export function CaptureForm({
   onSuccess,
   variant = 'member',
   submitAdapter,
+  initialValues,
 }: CaptureFormProps) {
   const copy = captureFormConfig(variant)
   const [name, setName] = useState('')
@@ -127,6 +131,15 @@ export function CaptureForm({
       setLegalRepName('')
     }
   }, [])
+
+  useEffect(() => {
+    if (!initialValues) return
+    if (initialValues.name !== undefined) setName(initialValues.name)
+    if (initialValues.phone !== undefined) setPhone(initialValues.phone)
+    if (initialValues.email !== undefined) setEmail(initialValues.email)
+    if (initialValues.birthday !== undefined) handleBirthdayChange(initialValues.birthday)
+    if (initialValues.legalRepName !== undefined) setLegalRepName(initialValues.legalRepName)
+  }, [initialValues, handleBirthdayChange])
 
   function addSocialMedia() {
     setSocialMedia([...socialMedia, { platform: 'instagram', handle: '' }])
