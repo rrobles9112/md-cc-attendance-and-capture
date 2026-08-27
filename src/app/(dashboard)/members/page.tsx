@@ -10,7 +10,7 @@ import {
 import { useRealtime } from "@/hooks/useRealtime";
 import { useCacheHydration } from "@/hooks/useCacheHydration";
 import { useRole } from "@/hooks/useRole";
-import { canDelete } from "@/lib/rbac/guards";
+import { canDelete, canManageRetreatRegistrations } from "@/lib/rbac/guards";
 import { softDelete } from "@/lib/delete/soft-delete";
 import { enqueue } from "@/lib/sync/queue";
 import { Button } from "@/components/ui/button";
@@ -42,14 +42,37 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getBirthdaysOfMonth, getNewMembers } from "@/lib/members/highlights";
+import { CaptureForm, type CaptureFormInitialValues } from "@/components/forms/CaptureForm";
+import { submitRetreatPreinscriptionForMember } from "@/lib/retreat/submit-adapter";
+import { RETREAT_EVENT_KEY } from "@/lib/retreat/constants";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+
+function memberToInitialValues(member: Member): CaptureFormInitialValues {
+  return {
+    name: member.name,
+    phone: member.phone,
+    email: member.email,
+    birthday: member.birthday ?? "",
+    isMinor: member.is_minor,
+    legalRepName: member.legal_rep_name ?? "",
+  };
+}
 
 export default function MembersPage() {
   const { role } = useRole();
+  const router = useRouter();
   const [members, setMembers] = useState<Member[]>([]);
   const [search, setSearch] = useState("");
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [socialMedia, setSocialMedia] = useState<SocialMedia[]>([]);
   const [whatsappNumbers, setWhatsappNumbers] = useState<WhatsAppNumber[]>([]);
+  const [retreatDialogOpen, setRetreatDialogOpen] = useState(false);
+  const [retreatBadge, setRetreatBadge] = useState<boolean | null>(null);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true,
+  );
+  const [hasSession, setHasSession] = useState(false);
 
   const loadMembers = useCallback(async () => {
     const allMembers = await db.members
@@ -72,6 +95,55 @@ export default function MembersPage() {
     onUpdate: () => loadMembers(),
     onDelete: () => loadMembers(),
   });
+
+  useEffect(() => {
+    function handleOnline() {
+      setIsOnline(navigator.onLine);
+    }
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOnline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOnline);
+    };
+  }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setHasSession(!!session);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setHasSession(!!session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const refreshBadge = useCallback(async (memberId: string) => {
+    try {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("retreat_registrations")
+        .select("id")
+        .eq("member_id", memberId)
+        .eq("event_key", RETREAT_EVENT_KEY)
+        .maybeSingle();
+      setRetreatBadge(data !== null);
+    } catch {
+      setRetreatBadge(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedMember) {
+      setRetreatBadge(null);
+      void refreshBadge(selectedMember.id);
+    } else {
+      setRetreatBadge(null);
+    }
+  }, [selectedMember, refreshBadge]);
 
   async function handleViewMember(member: Member) {
     setSelectedMember(member);
@@ -117,6 +189,14 @@ export default function MembersPage() {
     [members],
   );
   const newMembers = useMemo(() => getNewMembers(members), [members]);
+
+  const canShowPreinscribe =
+    role !== null &&
+    canManageRetreatRegistrations(role) &&
+    selectedMember !== null &&
+    selectedMember.deleted_at === null &&
+    isOnline &&
+    hasSession;
 
   return (
     <div className="space-y-6">
@@ -314,7 +394,14 @@ export default function MembersPage() {
       >
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{selectedMember?.name}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedMember?.name}
+              {retreatBadge && (
+                <Badge variant="outline" className="bg-emerald-50 text-emerald-800">
+                  Preinscrito
+                </Badge>
+              )}
+            </DialogTitle>
             <DialogDescription>Detalle del miembro</DialogDescription>
           </DialogHeader>
           {selectedMember && (
@@ -400,7 +487,81 @@ export default function MembersPage() {
                   "es-CO",
                 )}
               </div>
+
+              {canShowPreinscribe ? (
+                <Button
+                  onClick={() => setRetreatDialogOpen(true)}
+                  disabled={!isOnline || !hasSession}
+                  title={!isOnline ? "Requiere conexión" : undefined}
+                >
+                  Preinscribir al retiro
+                </Button>
+              ) : (
+                role !== null &&
+                canManageRetreatRegistrations(role) &&
+                selectedMember.deleted_at === null && (
+                  <Button
+                    disabled
+                    title={!isOnline ? "Requiere conexión" : !hasSession ? "Requiere sesión" : undefined}
+                  >
+                    Preinscribir al retiro
+                  </Button>
+                )
+              )}
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={retreatDialogOpen} onOpenChange={setRetreatDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Preinscribir a {selectedMember?.name} al retiro</DialogTitle>
+            <DialogDescription>
+              Los datos se precargan del miembro y son editables. Se requiere consentimiento fresco (Ley 1581).
+            </DialogDescription>
+          </DialogHeader>
+          {selectedMember && (
+            <CaptureForm
+              variant="retreat"
+              initialValues={memberToInitialValues(selectedMember)}
+              submitAdapter={async (payload) => {
+                try {
+                  await submitRetreatPreinscriptionForMember(selectedMember.id, payload);
+                } catch (e: unknown) {
+                  const msg = e instanceof Error ? e.message : String(e);
+                  const code = (e as { code?: string })?.code;
+                  if (msg.includes("already_preinscribed") || code === "23505") {
+                    toast.error("Ya existe una preinscripción con ese email/teléfono para este retiro.", {
+                      action: {
+                        label: "Ver en Retiro",
+                        onClick: () => router.push("/retreat-registrations"),
+                      },
+                    });
+                    throw e;
+                  }
+                  if (msg.includes("not_authorized") || code === "42501") {
+                    toast.error("No tiene permisos para preinscribir al retiro.");
+                    throw e;
+                  }
+                  if (msg.includes("missing_consent") || msg.includes("general consent is required")) {
+                    toast.error("Debe aceptar el aviso de privacidad para continuar.");
+                    throw e;
+                  }
+                  throw e;
+                }
+              }}
+              onSuccess={() => {
+                toast.success("Preinscripción creada", {
+                  action: {
+                    label: "Ver en Retiro",
+                    onClick: () => router.push("/retreat-registrations"),
+                  },
+                });
+                setRetreatDialogOpen(false);
+                void refreshBadge(selectedMember.id);
+              }}
+            />
           )}
         </DialogContent>
       </Dialog>
