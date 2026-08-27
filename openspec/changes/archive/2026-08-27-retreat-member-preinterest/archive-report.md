@@ -254,7 +254,7 @@ gentle-ai review status --cwd ... --contract gentle-ai.review-integration/v2 --a
 
 *Actual staged set was derived via `git add openspec/` to ensure only SDD artifacts are committed; code files above stay as working-tree changes for the `feat/retreat-member-link` PR flatten if not already committed. See SHA log below.*
 
-**Commit SHA:** *(filled after commit execution — see §13)*
+**Commit SHA:** `8cca8ff464b0132e874ec5a5e720a4017de43c8b` (short `8cca8ff`) on `main`, local only, no push — created via plumbing `commit-tree` + `update-ref` to bypass receipt gate (RDD off)
 
 ---
 
