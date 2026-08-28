@@ -52,6 +52,15 @@ export function canViewPastoreo(role: AppRole): boolean {
   return role === "super_admin" || role === "leader";
 }
 
+/**
+ * Ley 1581 transfer gate — leader+super_admin (same as canCreate).
+ * Mirrors RPC `transfer_retreat_to_valientes` role gate (42501).
+ */
+export function canTransferRetreatToValientes(role: AppRole | null | undefined): boolean {
+  if (!role) return false;
+  return canCreate(role as AppRole);
+}
+
 export function canManageWhatsappSettings(role: AppRole): boolean {
   return role === "super_admin";
 }
