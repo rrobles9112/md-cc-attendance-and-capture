@@ -31,14 +31,38 @@ ALTER TABLE public.members
 ALTER TABLE public.members
   ADD COLUMN IF NOT EXISTS whatsapp_opt_out_at TIMESTAMPTZ;
 
--- Generated column — PG12+ STORED, recomputed on birthday write.
--- NULL when birthday IS NULL; used for age_bucket CASE and indexing.
+-- age_years — Amendment A1 (2026-08-29): plain column maintained by trigger.
+-- PG15 rejects age() (STABLE) in a GENERATED ALWAYS expression (SQLSTATE 42P17).
+-- NULL when birthday IS NULL; used for age_bucket CASE. The trigger recomputes
+-- on birthday write — identical write-time semantics to the original STORED
+-- design; the backfill below closes the ALTER-time population gap.
 ALTER TABLE public.members
-  ADD COLUMN IF NOT EXISTS age_years INT
-    GENERATED ALWAYS AS (EXTRACT(YEAR FROM age(birthday))::int) STORED;
+  ADD COLUMN IF NOT EXISTS age_years INT;
+
+CREATE OR REPLACE FUNCTION public.members_age_years_maintain()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.age_years := EXTRACT(YEAR FROM age(NEW.birthday))::int;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS members_age_years_maintain ON public.members;
+CREATE TRIGGER members_age_years_maintain
+  BEFORE INSERT OR UPDATE OF birthday ON public.members
+  FOR EACH ROW
+  EXECUTE FUNCTION public.members_age_years_maintain();
+
+-- One-time backfill (Amendment A1): GENERATED would have populated existing
+-- rows at ALTER time; a plain column starts NULL for pre-existing rows.
+UPDATE public.members
+  SET age_years = EXTRACT(YEAR FROM age(birthday))::int
+  WHERE birthday IS NOT NULL AND age_years IS NULL;
 
 COMMENT ON COLUMN public.members.sex IS 'Ley 1581 sensitive; nullable, prefer_not_to_say allowed; excluded from default export; bucket NULL→No especificado';
-COMMENT ON COLUMN public.members.age_years IS 'GENERATED STORED from birthday; NULL when birthday IS NULL; used for age_bucket CASE (0-12..51+)';
+COMMENT ON COLUMN public.members.age_years IS 'maintained by members_age_years_maintain trigger (Amendment A1; age() not IMMUTABLE in PG15); NULL when birthday IS NULL; used for age_bucket CASE (0-12..51+)';
 COMMENT ON COLUMN public.members.whatsapp_opt_in IS 'Gate for absence sends; DEFAULT false until re-consent (D3)';
 COMMENT ON COLUMN public.members.whatsapp_opt_out_at IS 'Set on unsubscribe; blocks sends even if opt_in=true and consent exists';
 
