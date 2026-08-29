@@ -5,15 +5,18 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Search } from 'lucide-react'
+import { Download, Printer, Search, UserPlus } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useRole } from '@/hooks/useRole'
-import { canManageRetreatRegistrations, canManageUsers } from '@/lib/rbac/guards'
+import { canManageRetreatRegistrations, canManageUsers, canTransferRetreatToValientes } from '@/lib/rbac/guards'
 import { RETREAT_EVENT_KEY } from '@/lib/retreat/constants'
+import { buildReportRows, exportRetreatToXLSX, formatYYYYMMDD } from '@/lib/retreat/export'
 import {
   isRetreatPaymentBlocked,
   parsePositiveTotal,
@@ -30,6 +33,7 @@ import {
 } from '@/lib/retreat/queries'
 import { getRetreatTotalCost, setRetreatTotalCost } from '@/lib/settings/app-settings'
 import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 
 interface RetreatRegistrationRow {
   id: string
@@ -101,6 +105,13 @@ export default function RetreatRegistrationsPage() {
   const [pageSize, setPageSize] = useState(20)
   const [totalCount, setTotalCount] = useState(0)
   const [loadingData, setLoadingData] = useState(false)
+  const [transferTarget, setTransferTarget] = useState<RetreatRegistrationRow | null>(null)
+  const [transferConsent, setTransferConsent] = useState(false)
+  const [transferring, setTransferring] = useState(false)
+  const [loadingExport, setLoadingExport] = useState(false)
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
+  const [hasSession, setHasSession] = useState(true)
+  const router = useRouter()
 
   const loadData = useCallback(async () => {
     const supabase = createClient()
@@ -157,6 +168,24 @@ export default function RetreatRegistrationsPage() {
     setPage(1)
   }, [tab, searchDebounced, pageSize])
 
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(navigator.onLine)
+    const handleOffline = () => setIsOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+
+  useEffect(() => {
+    const supabase = createClient()
+    void supabase.auth.getSession().then(({ data }) => setHasSession(!!data.session))
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setHasSession(!!session))
+    return () => sub.subscription.unsubscribe()
+  }, [])
+
   if (loading) return null
 
   if (!role || !canManageRetreatRegistrations(role)) {
@@ -187,36 +216,146 @@ export default function RetreatRegistrationsPage() {
   }
 
   async function handleRecordPayment(registrationId: string) {
-    const amount = Number(amountDrafts[registrationId])
-    if (!(amount > 0)) {
-      toast.error('El monto de la cuota debe ser mayor que cero')
-      return
-    }
-    const supabase = createClient()
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session) {
-      toast.error('No hay una sesión activa')
-      return
-    }
-    setSavingPaymentId(registrationId)
-    try {
-      const { error } = await supabase.from('retreat_payments').insert({
-        registration_id: registrationId,
-        amount,
-        recorded_by: session.user.id,
-      })
-      if (error) throw error
-      toast.success('Pago registrado')
-      setAmountDrafts((current) => ({ ...current, [registrationId]: '' }))
-      await loadData()
-    } catch {
-      toast.error('Error al registrar el pago')
-    } finally {
-      setSavingPaymentId(null)
-    }
-  }
+        const amount = Number(amountDrafts[registrationId])
+        if (!(amount > 0)) {
+          toast.error('El monto de la cuota debe ser mayor que cero')
+          return
+        }
+        const supabase = createClient()
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        if (!session) {
+          toast.error('No hay una sesión activa')
+          return
+        }
+        setSavingPaymentId(registrationId)
+        try {
+          const { error } = await supabase.from('retreat_payments').insert({
+            registration_id: registrationId,
+            amount,
+            recorded_by: session.user.id,
+          })
+          if (error) throw error
+          toast.success('Pago registrado')
+          setAmountDrafts((current) => ({ ...current, [registrationId]: '' }))
+          await loadData()
+        } catch {
+          toast.error('Error al registrar el pago')
+        } finally {
+          setSavingPaymentId(null)
+        }
+      }
+
+      async function handleTransfer() {
+        if (!transferTarget || !transferConsent) return
+        setTransferring(true)
+        try {
+          const supabase = createClient()
+          const { data, error } = (await supabase.rpc('transfer_retreat_to_valientes', {
+            p_registration_id: transferTarget.id,
+          })) as { data: string | null; error: { message: string; code?: string } | null }
+          if (error) {
+            const msg = error.message ?? ''
+            const code = (error as { code?: string }).code ?? ''
+            if (msg.includes('already_transferred') || code === '23505' && msg.includes('transferred')) {
+              toast.error('Ya fue transferido', { action: { label: 'Ver miembro', onClick: () => router.push('/members') } })
+            } else if (msg.includes('already_member') || code === '23505') {
+              toast.error('Ya existe un miembro con ese email/teléfono — Ver miembro', { action: { label: 'Ver miembro', onClick: () => router.push('/members') } })
+            } else if (msg.includes('not_inscrito') || code === '23514') {
+              toast.error('La persona aún no está Inscrita (debe completar el pago total)')
+            } else if (msg.includes('missing_total')) {
+              toast.error('Costo total del retiro no configurado')
+            } else if (code === '42501') {
+              toast.error('No tiene permisos para transferir')
+            } else {
+              toast.error(`Error al transferir: ${msg}`)
+            }
+            return
+          }
+          toast.success('Transferido a Valientes', { action: { label: 'Ver miembro', onClick: () => router.push(`/members?highlight=${data}`) } })
+          setTransferTarget(null)
+          setTransferConsent(false)
+          await loadData()
+        } finally {
+          setTransferring(false)
+        }
+      }
+
+      async function fetchAllRetreatRows(inscritoOnly: boolean): Promise<RetreatRegistrationRow[]> {
+        const supabase = createClient()
+        const all: RetreatRegistrationRow[] = []
+        let offset = 0
+        const chunk = 1000
+        while (true) {
+          let q = supabase
+            .from('retreat_registrations')
+            .select(RETREAT_REGISTRATIONS_SELECT)
+            .eq('event_key', RETREAT_EVENT_KEY)
+            .order('name', { ascending: true })
+            .range(offset, offset + chunk - 1)
+          if (inscritoOnly) q = q.eq('status', 'inscrito')
+          else if (tab !== 'todos') q = q.eq('status', tab)
+          const sf = buildSearchOrFilter(searchDebounced)
+          if (sf && !inscritoOnly) q = q.or(sf)
+          const { data, error } = (await q) as { data: RetreatRegistrationRow[] | null; error: unknown }
+          if (error) throw error
+          const rows = (data ?? []) as RetreatRegistrationRow[]
+          all.push(...rows)
+          if (rows.length < chunk) break
+          offset += chunk
+        }
+        return all
+      }
+
+      async function fetchPaymentsChunked(ids: string[]): Promise<RetreatPaymentRow[]> {
+        if (ids.length === 0) return []
+        const supabase = createClient()
+        const all: RetreatPaymentRow[] = []
+        const batchSize = 900
+        for (let i = 0; i < ids.length; i += batchSize) {
+          const batch = ids.slice(i, i + batchSize)
+          const { data, error } = (await supabase
+            .from('retreat_payments')
+            .select('registration_id,amount,created_at')
+            .in('registration_id', batch)) as { data: RetreatPaymentRow[] | null; error: unknown }
+          if (error) throw error
+          all.push(...((data ?? []) as RetreatPaymentRow[]))
+        }
+        return all
+      }
+
+      async function handleExport(inscritoOnly: boolean) {
+        if (!isOnline || !hasSession) {
+          toast.error('Requiere conexión')
+          return
+        }
+        setLoadingExport(true)
+        try {
+          const regs = await fetchAllRetreatRows(inscritoOnly)
+          const ids = regs.map((r) => r.id)
+          const pays = await fetchPaymentsChunked(ids)
+          const byId = new Map<string, Array<{ amount: number | string; created_at: string }>>()
+          for (const p of pays) {
+            const arr = byId.get(p.registration_id) ?? []
+            arr.push({ amount: p.amount, created_at: p.created_at })
+            byId.set(p.registration_id, arr)
+          }
+          const rows = buildReportRows(
+            regs.map((r) => ({ name: r.name, email: r.email, phone: r.phone, birthday: r.birthday, is_minor: r.is_minor, legal_rep_name: r.legal_rep_name, status: r.status, transferred_at: r.transferred_at })),
+            byId,
+            storedTotal,
+            ids,
+          )
+          const filename = inscritoOnly ? `retiro-inscritos-${formatYYYYMMDD(new Date())}` : `retiro-estado-pago-${formatYYYYMMDD(new Date())}`
+          exportRetreatToXLSX(rows, filename)
+          toast.success(`Reporte ${inscritoOnly ? 'inscritos' : 'estado de pago'} generado`)
+        } catch {
+          toast.error('Error al generar el reporte')
+        } finally {
+          setLoadingExport(false)
+        }
+      }
 
   return (
     <div className="space-y-6">
@@ -292,6 +431,18 @@ export default function RetreatRegistrationsPage() {
         </div>
       </div>
 
+      <div className="no-print flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" disabled={!isOnline || !hasSession || loadingExport} title={!isOnline || !hasSession ? 'Requiere conexión' : undefined} onClick={() => void handleExport(false)}>
+          <Download className="mr-2 h-4 w-4" /> Exportar estado de pago
+        </Button>
+        <Button variant="secondary" size="sm" disabled={!isOnline || !hasSession || loadingExport} title={!isOnline || !hasSession ? 'Requiere conexión' : undefined} onClick={() => void handleExport(true)}>
+          <Download className="mr-2 h-4 w-4" /> Exportar inscritos
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => window.print()}>
+          <Printer className="mr-2 h-4 w-4" /> Imprimir
+        </Button>
+      </div>
+
       <div className="rounded-lg border">
         <Table>
           <TableHeader>
@@ -305,12 +456,13 @@ export default function RetreatRegistrationsPage() {
               <TableHead>% Pagado</TableHead>
               <TableHead>Último abono</TableHead>
               <TableHead className="w-56">Registrar pago</TableHead>
+              <TableHead className="w-40">Transferir</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {registrations.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-muted-foreground">
+                <TableCell colSpan={10} className="text-center text-muted-foreground">
                   No hay preinscripciones registradas
                 </TableCell>
               </TableRow>
@@ -349,35 +501,69 @@ export default function RetreatRegistrationsPage() {
                         ? new Date(abonos.last).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
                         : '—'}
                     </TableCell>
-                    <TableCell>
-                      {paymentsBlocked ? (
-                        <span className="text-xs text-muted-foreground">Pagos bloqueados</span>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            value={amountDrafts[registration.id] ?? ''}
-                            onChange={(event) =>
-                              setAmountDrafts((current) => ({
-                                ...current,
-                                [registration.id]: event.target.value,
-                              }))
-                            }
-                            placeholder="Monto"
-                            aria-label={`Monto de cuota para ${registration.name}`}
-                          />
-                          <Button
-                            size="sm"
-                            disabled={savingPaymentId === registration.id}
-                            onClick={() => void handleRecordPayment(registration.id)}
-                          >
-                            Registrar pago
-                          </Button>
-                        </div>
-                      )}
-                    </TableCell>
+                        <TableCell>
+                          {paymentsBlocked ? (
+                            <span className="text-xs text-muted-foreground">Pagos bloqueados</span>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                value={amountDrafts[registration.id] ?? ''}
+                                onChange={(event) =>
+                                  setAmountDrafts((current) => ({
+                                    ...current,
+                                    [registration.id]: event.target.value,
+                                  }))
+                                }
+                                placeholder="Monto"
+                                aria-label={`Monto de cuota para ${registration.name}`}
+                              />
+                              <Button
+                                size="sm"
+                                disabled={savingPaymentId === registration.id}
+                                onClick={() => void handleRecordPayment(registration.id)}
+                              >
+                                Registrar pago
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {registration.transferred_at ? (
+                            <Badge variant="secondary" className="bg-emerald-50 text-emerald-800" title={new Date(registration.transferred_at).toLocaleDateString('es-CO')}>
+                              Transferido ✓
+                            </Badge>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={
+                                registration.status !== 'inscrito' ||
+                                !isOnline ||
+                                !hasSession ||
+                                !canTransferRetreatToValientes(role) ||
+                                transferring
+                              }
+                              title={
+                                !isOnline || !hasSession
+                                  ? 'Requiere conexión'
+                                  : registration.status !== 'inscrito'
+                                    ? 'Requiere estado Inscrito'
+                                    : !canTransferRetreatToValientes(role)
+                                      ? 'Sin permisos'
+                                      : undefined
+                              }
+                              onClick={() => {
+                                setTransferTarget(registration)
+                                setTransferConsent(false)
+                              }}
+                            >
+                              <UserPlus className="mr-1 h-4 w-4" /> Transferir a Valientes
+                            </Button>
+                          )}
+                        </TableCell>
                   </TableRow>
                 )
               })
@@ -386,21 +572,55 @@ export default function RetreatRegistrationsPage() {
         </Table>
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm text-muted-foreground">
-        <div>
-          Mostrando {fromDisplay}–{toDisplay} de {totalCount} · Página {page} de {totalPages}
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1 || loadingData} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-            Anterior
-          </Button>
-          <Button variant="outline" size="sm" disabled={page >= totalPages || loadingData} onClick={() => setPage((p) => p + 1)}>
-            Siguiente
-          </Button>
-        </div>
-      </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm text-muted-foreground">
+            <div>
+              Mostrando {fromDisplay}–{toDisplay} de {totalCount} · Página {page} de {totalPages}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" disabled={page <= 1 || loadingData} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                Anterior
+              </Button>
+              <Button variant="outline" size="sm" disabled={page >= totalPages || loadingData} onClick={() => setPage((p) => p + 1)}>
+                Siguiente
+              </Button>
+            </div>
+          </div>
 
-      <style>{`@media print{nav,.no-print{display:none}tr{break-inside:avoid}@page{margin:1cm}}`}</style>
+          <Dialog open={!!transferTarget} onOpenChange={(open) => { if (!open) { setTransferTarget(null); setTransferConsent(false) } }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Transferir a Valientes</DialogTitle>
+                <DialogDescription>
+                  Se creará un miembro en el grupo Valientes con los datos del retiro. Esta acción es irreversible. Ley 1581 pdtp-v1.0-2026-07-17
+                </DialogDescription>
+              </DialogHeader>
+              {transferTarget && (
+                <div className="space-y-2 text-sm">
+                  <p><strong>Nombre:</strong> {transferTarget.name}</p>
+                  <p><strong>Email:</strong> {transferTarget.email}</p>
+                  <p><strong>Teléfono:</strong> {transferTarget.phone}</p>
+                  <p><strong>Estado:</strong> {retreatStatusLabel(transferTarget.status)}</p>
+                </div>
+              )}
+              <div className="flex items-center space-x-2 py-2">
+                <Checkbox id="transfer-consent" checked={transferConsent} onCheckedChange={(v) => setTransferConsent(v === true)} />
+                <Label htmlFor="transfer-consent" className="text-sm font-normal">
+                  Acepto que mis datos se traten para mi incorporación al grupo Valientes como miembro asistente (Ley 1581 pdtp-v1.0-2026-07-17)
+                </Label>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setTransferTarget(null); setTransferConsent(false) }}>Cancelar</Button>
+                <Button disabled={!transferConsent || transferring} onClick={() => void handleTransfer()}>
+                  {transferring ? 'Transfiriendo...' : 'Transferir'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <div className="print-header hidden print:block text-sm text-muted-foreground mb-4">
+            Confidencial Ley 1581 — Uso interno MD CC — Evento: {RETREAT_EVENT_KEY} — Generado: {new Date().toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          </div>
+          <style>{`@media print{nav,.no-print{display:none}tr{break-inside:avoid}@page{margin:1cm}.print-header{display:block}}`}</style>
     </div>
   )
 }
