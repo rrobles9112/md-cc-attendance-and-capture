@@ -16,6 +16,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useRole } from '@/hooks/useRole'
 import { canManageRetreatRegistrations, canManageUsers, canTransferRetreatToValientes } from '@/lib/rbac/guards'
 import { RETREAT_EVENT_KEY } from '@/lib/retreat/constants'
+import { RetreatPreinscriptionCreate } from '@/components/retreat/RetreatPreinscriptionCreate'
 import { buildReportRows, exportRetreatToXLSX, formatYYYYMMDD } from '@/lib/retreat/export'
 import {
   isRetreatPaymentBlocked,
@@ -432,7 +433,12 @@ export default function RetreatRegistrationsPage() {
       </div>
 
       <div className="no-print flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" disabled={!isOnline || !hasSession || loadingExport} title={!isOnline || !hasSession ? 'Requiere conexión' : undefined} onClick={() => void handleExport(false)}>
+            <RetreatPreinscriptionCreate
+              disabled={!isOnline || !hasSession}
+              disabledTitle="Requiere conexión"
+              onSuccess={() => void loadData()}
+            />
+            <Button variant="outline" size="sm" disabled={!isOnline || !hasSession || loadingExport} title={!isOnline || !hasSession ? 'Requiere conexión' : undefined} onClick={() => void handleExport(false)}>
           <Download className="mr-2 h-4 w-4" /> Exportar estado de pago
         </Button>
         <Button variant="secondary" size="sm" disabled={!isOnline || !hasSession || loadingExport} title={!isOnline || !hasSession ? 'Requiere conexión' : undefined} onClick={() => void handleExport(true)}>
