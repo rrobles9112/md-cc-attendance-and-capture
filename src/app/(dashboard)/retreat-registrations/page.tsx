@@ -108,6 +108,7 @@ export default function RetreatRegistrationsPage() {
   const [loadingData, setLoadingData] = useState(false)
   const [transferTarget, setTransferTarget] = useState<RetreatRegistrationRow | null>(null)
   const [transferConsent, setTransferConsent] = useState(false)
+  const [transferDup, setTransferDup] = useState<{ id: string; name: string } | null>(null)
   const [transferring, setTransferring] = useState(false)
   const [loadingExport, setLoadingExport] = useState(false)
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
@@ -187,6 +188,40 @@ export default function RetreatRegistrationsPage() {
     return () => sub.subscription.unsubscribe()
   }, [])
 
+  // Duplicate pre-check when the transfer dialog opens: email exact match OR
+  // phone containing the digits of the registration phone. The transfer RPC
+  // remains the authoritative validation; query errors surface no warning.
+  useEffect(() => {
+    if (!transferTarget) {
+      setTransferDup(null)
+      return
+    }
+    const email = (transferTarget.email ?? '').trim()
+    const digits = (transferTarget.phone ?? '').replace(/\D/g, '')
+    const ors: string[] = []
+    if (email) ors.push(`email.eq.${email}`)
+    if (digits) ors.push(`phone.like.%${digits}%`)
+    if (ors.length === 0) {
+      setTransferDup(null)
+      return
+    }
+    let cancelled = false
+    const supabase = createClient()
+    void (supabase
+      .from('members')
+      .select('id,name')
+      .or(ors.join(','))
+      .limit(1) as unknown as Promise<{
+        data: Array<{ id: string; name: string }> | null
+        error: unknown
+      }>).then(({ data }) => {
+        if (!cancelled) setTransferDup(data && data.length > 0 ? data[0] : null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [transferTarget])
+
   if (loading) return null
 
   if (!role || !canManageRetreatRegistrations(role)) {
@@ -217,40 +252,71 @@ export default function RetreatRegistrationsPage() {
     }
   }
 
-  async function handleRecordPayment(registrationId: string) {
-        // Defense in depth: the UI hides the payment cell for roles without
-        // payment permission; this mirrors the retreat_payments RLS policies.
-        if (!role || !canRecordRetreatPayments(role)) return
-        const amount = Number(amountDrafts[registrationId])
-        if (!(amount > 0)) {
-          toast.error('El monto de la cuota debe ser mayor que cero')
-          return
-        }
-        const supabase = createClient()
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-        if (!session) {
-          toast.error('No hay una sesión activa')
-          return
-        }
-        setSavingPaymentId(registrationId)
-        try {
-          const { error } = await supabase.from('retreat_payments').insert({
-            registration_id: registrationId,
-            amount,
-            recorded_by: session.user.id,
-          })
-          if (error) throw error
-          toast.success('Pago registrado')
-          setAmountDrafts((current) => ({ ...current, [registrationId]: '' }))
-          await loadData()
-        } catch {
-          toast.error('Error al registrar el pago')
-        } finally {
-          setSavingPaymentId(null)
-        }
+  async function recordPayment(registrationId: string, amount: number): Promise<boolean> {
+    // Defense in depth: the UI hides the payment cell for roles without
+    // payment permission; this mirrors the retreat_payments RLS policies.
+    if (!role || !canRecordRetreatPayments(role)) return false
+    if (!(amount > 0)) {
+      toast.error('El monto de la cuota debe ser mayor que cero')
+      return false
+    }
+    const supabase = createClient()
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (!session) {
+      toast.error('No hay una sesión activa')
+      return false
+    }
+    setSavingPaymentId(registrationId)
+    try {
+      const { error } = await supabase.from('retreat_payments').insert({
+        registration_id: registrationId,
+        amount,
+        recorded_by: session.user.id,
+      })
+      if (error) throw error
+      await loadData()
+      return true
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : ((err as { message?: string } | null)?.message ?? String(err))
+      if (msg.includes('already fully paid')) {
+        toast.error('Ya está pagado en su totalidad — no se permiten más abonos')
+      } else if (msg.includes('exceeds remaining balance')) {
+        toast.error('El abono excede el saldo pendiente')
+      } else {
+        toast.error('Error al registrar el pago')
       }
+      return false
+    } finally {
+      setSavingPaymentId(null)
+    }
+  }
+
+  async function handleRecordPayment(registrationId: string) {
+    // Belt & braces with the guard trigger: fully paid rows take no more abonos.
+    const target = registrations.find((r) => r.id === registrationId)
+    if (target?.status === 'inscrito') return
+    const ok = await recordPayment(registrationId, Number(amountDrafts[registrationId]))
+    if (ok) {
+      toast.success('Pago registrado')
+      setAmountDrafts((current) => ({ ...current, [registrationId]: '' }))
+    }
+  }
+
+  async function handleCompleteRemaining(registrationId: string) {
+    const target = registrations.find((r) => r.id === registrationId)
+    if (!target || target.status === 'inscrito') return
+    const remaining = remainingBalance(parsedTotal, paidByRegistration.get(registrationId) ?? 0)
+    if (remaining === null || remaining <= 0) return
+    const ok = await recordPayment(registrationId, remaining)
+    if (ok) {
+      toast.success('Saldo completado')
+    }
+  }
 
       async function handleTransfer() {
         if (!transferTarget || !transferConsent) return
@@ -465,7 +531,7 @@ export default function RetreatRegistrationsPage() {
               <TableHead>Saldo</TableHead>
               <TableHead>% Pagado</TableHead>
               <TableHead>Último abono</TableHead>
-              <TableHead className="w-56">Registrar pago</TableHead>
+              <TableHead className="w-64">Registrar pago</TableHead>
               <TableHead className="w-40">Transferir</TableHead>
             </TableRow>
           </TableHeader>
@@ -482,6 +548,7 @@ export default function RetreatRegistrationsPage() {
                 const remaining = remainingBalance(parsedTotal, sumPaid)
                 const rowPayments = payments.filter((p) => p.registration_id === registration.id)
                 const abonos = computeRowAbonos(rowPayments, storedTotal)
+                const pct = parsedTotal ? Math.min(100, (sumPaid / parsedTotal) * 100) : 0
                 return (
                   <TableRow key={registration.id}>
                     <TableCell className="font-medium">
@@ -511,34 +578,68 @@ export default function RetreatRegistrationsPage() {
                         ? new Date(abonos.last).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
                         : '—'}
                     </TableCell>
-                        <TableCell>
-                          {paymentsBlocked ? (
+                        <TableCell className="w-64">
+                          {registration.status === 'inscrito' ? (
+                            <Badge variant="secondary" className="bg-emerald-50 text-emerald-800">
+                              Pagado ✓
+                            </Badge>
+                          ) : paymentsBlocked ? (
                             <span className="text-xs text-muted-foreground">Pagos bloqueados</span>
                           ) : !canRecordPayments ? (
                             <span className="text-xs text-muted-foreground">—</span>
                           ) : (
-                            <div className="flex items-center gap-2">
-                              <Input
-                                type="number"
-                                min="0.01"
-                                step="0.01"
-                                value={amountDrafts[registration.id] ?? ''}
-                                onChange={(event) =>
-                                  setAmountDrafts((current) => ({
-                                    ...current,
-                                    [registration.id]: event.target.value,
-                                  }))
-                                }
-                                placeholder="Monto"
-                                aria-label={`Monto de cuota para ${registration.name}`}
-                              />
-                              <Button
-                                size="sm"
-                                disabled={savingPaymentId === registration.id}
-                                onClick={() => void handleRecordPayment(registration.id)}
-                              >
-                                Registrar pago
-                              </Button>
+                            <div className="flex w-64 flex-col gap-1.5">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Input
+                                  type="number"
+                                  min="0.01"
+                                  step="0.01"
+                                  value={amountDrafts[registration.id] ?? ''}
+                                  onChange={(event) =>
+                                    setAmountDrafts((current) => ({
+                                      ...current,
+                                      [registration.id]: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="Monto"
+                                  aria-label={`Monto de cuota para ${registration.name}`}
+                                />
+                                <Button
+                                  size="sm"
+                                  disabled={savingPaymentId === registration.id}
+                                  onClick={() => void handleRecordPayment(registration.id)}
+                                >
+                                  Registrar pago
+                                </Button>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={
+                                    remaining === null ||
+                                    remaining <= 0 ||
+                                    !isOnline ||
+                                    !hasSession ||
+                                    savingPaymentId === registration.id
+                                  }
+                                  onClick={() => void handleCompleteRemaining(registration.id)}
+                                >
+                                  Completar saldo
+                                </Button>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="h-1.5 w-full rounded bg-secondary">
+                                  <div
+                                    className="h-1.5 rounded bg-primary"
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  Pagado {formatAmount(sumPaid)} de{' '}
+                                  {parsedTotal ? formatAmount(parsedTotal) : '—'}
+                                </span>
+                              </div>
                             </div>
                           )}
                         </TableCell>
@@ -548,16 +649,7 @@ export default function RetreatRegistrationsPage() {
                               Transferido ✓
                             </Badge>
                           ) : (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              disabled={
-                                registration.status !== 'inscrito' ||
-                                !isOnline ||
-                                !hasSession ||
-                                !canTransferRetreatToValientes(role) ||
-                                transferring
-                              }
+                            <span
                               title={
                                 !isOnline || !hasSession
                                   ? 'Requiere conexión'
@@ -567,13 +659,25 @@ export default function RetreatRegistrationsPage() {
                                       ? 'Sin permisos'
                                       : undefined
                               }
-                              onClick={() => {
-                                setTransferTarget(registration)
-                                setTransferConsent(false)
-                              }}
                             >
-                              <UserPlus className="mr-1 h-4 w-4" /> Transferir a Valientes
-                            </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                disabled={
+                                  registration.status !== 'inscrito' ||
+                                  !isOnline ||
+                                  !hasSession ||
+                                  !canTransferRetreatToValientes(role) ||
+                                  transferring
+                                }
+                                onClick={() => {
+                                  setTransferTarget(registration)
+                                  setTransferConsent(false)
+                                }}
+                              >
+                                <UserPlus className="mr-1 h-4 w-4" /> Transferir a Valientes
+                              </Button>
+                            </span>
                           )}
                         </TableCell>
                   </TableRow>
@@ -614,6 +718,11 @@ export default function RetreatRegistrationsPage() {
                   <p><strong>Estado:</strong> {retreatStatusLabel(transferTarget.status)}</p>
                 </div>
               )}
+              {transferDup && (
+                <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  Ya existe un miembro con ese email o teléfono{transferDup.name ? `: ${transferDup.name}` : ''}
+                </p>
+              )}
               <div className="flex items-center space-x-2 py-2">
                 <Checkbox id="transfer-consent" checked={transferConsent} onCheckedChange={(v) => setTransferConsent(v === true)} />
                 <Label htmlFor="transfer-consent" className="text-sm font-normal">
@@ -622,7 +731,7 @@ export default function RetreatRegistrationsPage() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setTransferTarget(null); setTransferConsent(false) }}>Cancelar</Button>
-                <Button disabled={!transferConsent || transferring} onClick={() => void handleTransfer()}>
+                <Button disabled={!transferConsent || transferring || !!transferDup} onClick={() => void handleTransfer()}>
                   {transferring ? 'Transfiriendo...' : 'Transferir'}
                 </Button>
               </DialogFooter>

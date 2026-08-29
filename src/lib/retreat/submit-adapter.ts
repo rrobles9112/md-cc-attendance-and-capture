@@ -19,6 +19,8 @@ export async function submitRetreatPreinscriptionForMember(
     p_sensitive_consent: payload.sensitiveConsent,
     p_denomination: payload.denomination,
     p_community_name: payload.communityName,
+    p_has_whatsapp: payload.hasWhatsapp,
+    p_whatsapp_number: payload.additionalWhatsapp.trim() || null,
   })
   if (error) {
     throw error
@@ -39,6 +41,8 @@ export async function submitRetreatPreinscription(
     p_sensitive_consent: payload.sensitiveConsent,
     p_denomination: payload.denomination,
     p_community_name: payload.communityName,
+    p_has_whatsapp: payload.hasWhatsapp,
+    p_whatsapp_number: payload.additionalWhatsapp.trim() || null,
   })
 
   if (error) {

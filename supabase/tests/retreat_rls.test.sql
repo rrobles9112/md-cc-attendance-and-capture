@@ -45,6 +45,9 @@ DECLARE
   v_total_value TEXT;
   v_seen_pii BOOLEAN;
   v_is_minor BOOLEAN;
+  v_whatsapp_id UUID;
+  v_has_whatsapp BOOLEAN;
+  v_whatsapp TEXT;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = v_super_admin_id) THEN
     RAISE EXCEPTION 'Seed users missing — run supabase db reset (applies seed.sql) before retreat RLS tests';
@@ -602,6 +605,49 @@ BEGIN
   END IF;
   RAISE NOTICE 'PASS: sensitive fields NULL without sensitive consent';
 
+  -- =========================================================================
+  -- 1.3b WhatsApp fields persist via the public RPC (020)
+  -- =========================================================================
+  SET LOCAL ROLE anon;
+  PERFORM set_config(
+    'request.jwt.claims',
+    json_build_object('role', 'anon')::text,
+    true
+  );
+  v_whatsapp_id := public.register_retreat_preinscription(
+    p_name := 'Whatsapp Fields',
+    p_phone := '3000000032',
+    p_email := 'retreat-whatsapp@example.com',
+    p_birthday := DATE '2000-01-15',
+    p_legal_rep_name := NULL,
+    p_general_consent := true,
+    p_sensitive_consent := false,
+    p_denomination := NULL,
+    p_community_name := NULL,
+    p_has_whatsapp := true,
+    p_whatsapp_number := ' 3000000033 '
+  );
+  RESET ROLE;
+
+  SELECT r.has_whatsapp, r.whatsapp_number
+    INTO v_has_whatsapp, v_whatsapp
+  FROM public.retreat_registrations r
+  WHERE r.id = v_whatsapp_id;
+  IF v_has_whatsapp IS DISTINCT FROM true THEN
+    RAISE EXCEPTION 'FAIL: has_whatsapp must persist as true, got %', v_has_whatsapp;
+  END IF;
+  IF v_whatsapp IS DISTINCT FROM '3000000033' THEN
+    RAISE EXCEPTION 'FAIL: whatsapp_number must persist trimmed, got %', v_whatsapp;
+  END IF;
+
+  SELECT r.has_whatsapp INTO v_has_whatsapp
+  FROM public.retreat_registrations r
+  WHERE r.id = v_sens_no_id;
+  IF v_has_whatsapp IS NOT FALSE THEN
+    RAISE EXCEPTION 'FAIL: default has_whatsapp must be false when params omitted, got %', v_has_whatsapp;
+  END IF;
+  RAISE NOTICE 'PASS: RPC persists has_whatsapp and trimmed whatsapp_number; default false';
+
   -- Composite unique: same email allowed for a different event_key (owner insert)
   INSERT INTO public.retreat_registrations (
     event_key, name, phone, email, birthday, is_minor, status,
@@ -944,6 +990,40 @@ BEGIN
   END IF;
   RAISE NOTICE 'PASS: covered sum becomes inscrito without members insert';
 
+  -- No more abonos once fully paid (020 guard)
+  SET LOCAL ROLE authenticated;
+  PERFORM set_config(
+    'request.jwt.claims',
+    json_build_object(
+      'role', 'authenticated',
+      'sub', v_leader_id::text,
+      'app_metadata', json_build_object('role', 'leader')
+    )::text,
+    true
+  );
+  BEGIN
+    INSERT INTO public.retreat_payments (registration_id, amount, recorded_by)
+    VALUES (v_status_a, 10, v_leader_id);
+    RAISE EXCEPTION 'FAIL: abono after full total should be refused';
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLERRM LIKE 'FAIL:%' THEN
+        RAISE;
+      END IF;
+      IF SQLERRM NOT LIKE '%already fully paid%' THEN
+        RAISE EXCEPTION 'FAIL: expected already fully paid, got %', SQLERRM;
+      END IF;
+      RAISE NOTICE 'PASS: no more abonos once fully paid (%)', SQLERRM;
+  END;
+  RESET ROLE;
+
+  SELECT count(*) INTO v_pay_count
+  FROM public.retreat_payments
+  WHERE registration_id = v_status_a;
+  IF v_pay_count <> 2 THEN
+    RAISE EXCEPTION 'FAIL: fully paid registration must keep exactly 2 payments, got %', v_pay_count;
+  END IF;
+
   SET LOCAL ROLE anon;
   PERFORM set_config(
     'request.jwt.claims',
@@ -1010,6 +1090,7 @@ BEGIN
   END IF;
   RAISE NOTICE 'PASS: super_admin subsequent installment persists with both payments';
 
+  -- Over-balance installment: abono larger than the remaining balance is refused (020 guard)
   SET LOCAL ROLE authenticated;
   PERFORM set_config(
     'request.jwt.claims',
@@ -1022,21 +1103,47 @@ BEGIN
   );
   INSERT INTO public.retreat_payments (registration_id, amount, recorded_by)
   VALUES (v_status_b, 80, v_leader_id);
-  INSERT INTO public.retreat_payments (registration_id, amount, recorded_by)
-  VALUES (v_status_b, 50, v_leader_id);
   RESET ROLE;
 
   SELECT r.status INTO v_status FROM public.retreat_registrations r WHERE r.id = v_status_b;
-  IF v_status IS DISTINCT FROM 'inscrito' THEN
-    RAISE EXCEPTION 'FAIL: overpay 130/100 should be inscrito, got %', v_status;
+  IF v_status IS DISTINCT FROM 'pagos_parciales' THEN
+    RAISE EXCEPTION 'FAIL: partial sum 80/100 should be pagos_parciales, got %', v_status;
   END IF;
+  RAISE NOTICE 'PASS: partial sum 80/100 stays pagos_parciales';
+
+  SET LOCAL ROLE authenticated;
+  PERFORM set_config(
+    'request.jwt.claims',
+    json_build_object(
+      'role', 'authenticated',
+      'sub', v_leader_id::text,
+      'app_metadata', json_build_object('role', 'leader')
+    )::text,
+    true
+  );
+  BEGIN
+    INSERT INTO public.retreat_payments (registration_id, amount, recorded_by)
+    VALUES (v_status_b, 50, v_leader_id);
+    RAISE EXCEPTION 'FAIL: abono exceeding remaining balance should be refused';
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLERRM LIKE 'FAIL:%' THEN
+        RAISE;
+      END IF;
+      IF SQLERRM NOT LIKE '%exceeds remaining balance%' THEN
+        RAISE EXCEPTION 'FAIL: expected exceeds remaining balance, got %', SQLERRM;
+      END IF;
+      RAISE NOTICE 'PASS: abono exceeding remaining balance refused (%)', SQLERRM;
+  END;
+  RESET ROLE;
+
   SELECT count(*) INTO v_pay_count
   FROM public.retreat_payments
   WHERE registration_id = v_status_b;
-  IF v_pay_count <> 2 THEN
-    RAISE EXCEPTION 'FAIL: overpay installment should persist, expected 2 payments got %', v_pay_count;
+  IF v_pay_count <> 1 THEN
+    RAISE EXCEPTION 'FAIL: refused over-balance abono must not create a payment row, got %', v_pay_count;
   END IF;
-  RAISE NOTICE 'PASS: overpayment accepted and marked inscrito';
+  RAISE NOTICE 'PASS: over-balance refusal leaves exactly one 80 payment row';
 
   SET LOCAL ROLE authenticated;
   PERFORM set_config(

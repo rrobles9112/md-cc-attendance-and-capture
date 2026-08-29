@@ -155,7 +155,7 @@ describe('CaptureForm initialValues prefill', () => {
     expect(screen.getByLabelText(/Nombre de la comunidad/)).toBeInTheDocument()
   })
 
-  it('retreat variant shows RETREAT_PRIVACY_NOTICE_ES and hides WhatsApp/social cards', () => {
+  it('retreat variant shows RETREAT_PRIVACY_NOTICE_ES, WhatsApp card, and hides the social card', () => {
     const submitAdapter = vi.fn().mockResolvedValue(undefined)
     render(
       <CaptureForm
@@ -168,8 +168,23 @@ describe('CaptureForm initialValues prefill', () => {
     expect(screen.getByRole('button', { name: RETREAT_SUBMIT_LABEL })).toBeInTheDocument()
     expect(screen.getByText(/PREINSCRIPCIÓN AL RETIRO JUVENIL/)).toBeInTheDocument()
     expect(RETREAT_PRIVACY_NOTICE_ES).toMatch(/PREINSCRIPCIÓN AL RETIRO JUVENIL/)
-    expect(screen.queryByText('WhatsApp')).not.toBeInTheDocument()
+    expect(screen.getByText('WhatsApp')).toBeInTheDocument()
     expect(screen.queryByText('Redes sociales')).not.toBeInTheDocument()
+  })
+
+  it('prefills hasWhatsapp from initialValues', () => {
+    const submitAdapter = vi.fn().mockResolvedValue(undefined)
+    render(
+      <CaptureForm
+        variant="retreat"
+        initialValues={{ name: 'Ana', hasWhatsapp: true }}
+        submitAdapter={submitAdapter}
+      />,
+    )
+
+    expect(
+      screen.getByRole('checkbox', { name: /El número principal tiene WhatsApp/ }),
+    ).toBeChecked()
   })
 
   it('without initialValues form mounts empty (existing behavior)', () => {

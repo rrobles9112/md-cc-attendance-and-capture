@@ -20,6 +20,13 @@ DECLARE
   v_cnt_before INT;
   v_cnt_after INT;
   v_total TEXT;
+  v_r_seed UUID;
+  v_seed_member UUID;
+  v_dup2_member UUID := 'c0000000-0000-4000-8000-0000000000a3';
+  v_r_dup2 UUID;
+  v_wh TEXT;
+  v_primary BOOLEAN;
+  v_ww_has BOOLEAN;
 BEGIN
   -- 0) schema guards (42703 / 42883 equivalent)
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='members' AND column_name='pastoral_group') THEN
@@ -77,7 +84,7 @@ BEGIN
   SET LOCAL ROLE authenticated;
   PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
   -- create linked registration (needs member_id)
-  v_r_linked := public.register_retreat_preinscription_for_member(p_member_id:=v_member_linked, p_general_consent:=true, p_sensitive_consent:=false);
+  v_r_linked := public.register_retreat_preinscription_for_member(p_member_id:=v_member_linked, p_general_consent:=true, p_sensitive_consent:=false, p_has_whatsapp:=true, p_whatsapp_number:='3008887777');
   INSERT INTO public.retreat_payments (registration_id,amount,recorded_by) VALUES (v_r_linked,400000,v_leader);
   RESET ROLE;
 
@@ -94,6 +101,8 @@ BEGIN
   IF v_email <>'inscrito-valiente@example.com' THEN RAISE EXCEPTION 'FAIL: CASE1 email normalized %', v_email; END IF;
   SELECT phone INTO v_phone FROM public.members WHERE id=v_new_member;
   IF v_phone <>'+573001234567' THEN RAISE EXCEPTION 'FAIL: CASE1 phone +57 expected got %', v_phone; END IF;
+  SELECT has_whatsapp INTO v_ww_has FROM public.members WHERE id=v_new_member;
+  IF v_ww_has IS NOT FALSE THEN RAISE EXCEPTION 'FAIL: CASE1 member has_whatsapp should be false (no whatsapp params), got %', v_ww_has; END IF;
   SELECT transferred_at, transferred_member_id INTO v_transferred_at, v_new_member FROM public.retreat_registrations WHERE id=v_r_inscrito;
   IF v_transferred_at IS NULL THEN RAISE EXCEPTION 'FAIL: CASE1 transferred_at IS NULL'; END IF;
   SELECT count(*) INTO v_cnt_after FROM public.members;
@@ -121,14 +130,15 @@ BEGIN
   BEGIN PERFORM public.transfer_retreat_to_valientes(v_r_pre); RAISE EXCEPTION 'FAIL: CASE3 preinscrito should 23514'; EXCEPTION WHEN OTHERS THEN IF SQLSTATE<>'23514' OR SQLERRM NOT LIKE '%not_inscrito%' THEN RAISE EXCEPTION 'FAIL: CASE3 expected 23514 not_inscrito got % %', SQLSTATE, SQLERRM; END IF; RAISE NOTICE 'PASS: CASE3 preinscrito not_inscrito %', SQLERRM; END;
   RESET ROLE;
 
-  -- CASE 4: missing_total
+  -- CASE 4: admission gate is status only (020) — with total empty, preinscrito
+  -- still raises not_inscrito; the missing_total precondition is gone.
   SET LOCAL ROLE authenticated;
   PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   UPDATE public.app_settings SET value='', updated_by=v_super WHERE key='retreat.youth.total_cost';
   RESET ROLE;
   SET LOCAL ROLE authenticated;
   PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
-  BEGIN PERFORM public.transfer_retreat_to_valientes(v_r_pre); RAISE EXCEPTION 'FAIL: CASE4 missing_total should 23514'; EXCEPTION WHEN OTHERS THEN IF SQLSTATE<>'23514' OR SQLERRM NOT LIKE '%missing_total%' THEN RAISE EXCEPTION 'FAIL: CASE4 expected missing_total got % %', SQLSTATE, SQLERRM; END IF; RAISE NOTICE 'PASS: CASE4 missing_total %', SQLERRM; END;
+  BEGIN PERFORM public.transfer_retreat_to_valientes(v_r_pre); RAISE EXCEPTION 'FAIL: CASE4 preinscrito should 23514 even with empty total'; EXCEPTION WHEN OTHERS THEN IF SQLSTATE<>'23514' OR SQLERRM NOT LIKE '%not_inscrito%' OR SQLERRM LIKE '%missing_total%' THEN RAISE EXCEPTION 'FAIL: CASE4 expected not_inscrito (no missing_total) got % %', SQLSTATE, SQLERRM; END IF; RAISE NOTICE 'PASS: CASE4 status-only gate with empty total %', SQLERRM; END;
   RESET ROLE;
   -- restore total
   SET LOCAL ROLE authenticated;
@@ -154,6 +164,45 @@ BEGIN
   END;
   RESET ROLE;
 
+  -- CASE 5b: duplicate email WITHOUT payments on a preinscrito row -> already_member
+  -- (duplicate check precedes the status gate in 020)
+  INSERT INTO public.members (id,name,name_normalized,phone,email,birthday,is_minor,has_whatsapp,consent_recorded,sensitive_consent_recorded,duplicate_flag,created_by,created_at,updated_at,deleted_at) VALUES
+    (v_dup2_member,'Dup Two','dup two','3009990002','dup2-valientes@example.com','2000-01-15',false,false,true,false,false,v_leader,now(),now(),NULL)
+  ON CONFLICT (id) DO NOTHING;
+  SET LOCAL ROLE anon;
+  PERFORM set_config('request.jwt.claims', json_build_object('role','anon')::text,true);
+  v_r_dup2 := public.register_retreat_preinscription(p_name:='Dup Two Reg', p_phone:='3007770010', p_email:='dup2-valientes@example.com', p_general_consent:=true);
+  RESET ROLE;
+  SET LOCAL ROLE authenticated;
+  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  BEGIN PERFORM public.transfer_retreat_to_valientes(v_r_dup2); RAISE EXCEPTION 'FAIL: CASE5b duplicate should 23505'; EXCEPTION WHEN OTHERS THEN IF SQLSTATE<>'23505' OR SQLERRM NOT LIKE '%already_member%' THEN RAISE EXCEPTION 'FAIL: CASE5b expected already_member got % %', SQLSTATE, SQLERRM; END IF; RAISE NOTICE 'PASS: CASE5b duplicate before status gate %', SQLERRM; END;
+  RESET ROLE;
+
+  -- CASE 5c: seed-style inscrito WITHOUT payments + whatsapp fields -> transfer
+  -- succeeds; member created with pastoral_group Valientes, has_whatsapp true,
+  -- whatsapp_numbers row, transferred_* stamped.
+  SET LOCAL ROLE anon;
+  PERFORM set_config('request.jwt.claims', json_build_object('role','anon')::text,true);
+  v_r_seed := public.register_retreat_preinscription(p_name:='Seed Valiente', p_phone:='3007770001', p_email:='seed-valiente@example.com', p_birthday:=DATE '2000-01-15', p_general_consent:=true, p_sensitive_consent:=true, p_denomination:='Catolica', p_community_name:='MD CC', p_has_whatsapp:=true, p_whatsapp_number:=' 3001112233 ');
+  RESET ROLE;
+  UPDATE public.retreat_registrations SET status='inscrito' WHERE id=v_r_seed; -- owner seed-style status, no payments
+  SELECT count(*) INTO v_cnt_before FROM public.members;
+  SET LOCAL ROLE authenticated;
+  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  v_seed_member := public.transfer_retreat_to_valientes(v_r_seed);
+  RESET ROLE;
+  IF v_seed_member IS NULL THEN RAISE EXCEPTION 'FAIL: CASE5c transfer should return member uuid'; END IF;
+  SELECT pastoral_group, has_whatsapp INTO v_pastoral, v_ww_has FROM public.members WHERE id=v_seed_member;
+  IF v_pastoral<>'Valientes' OR v_ww_has IS NOT TRUE THEN RAISE EXCEPTION 'FAIL: CASE5c pastoral/has_whatsapp got % %', v_pastoral, v_ww_has; END IF;
+  SELECT count(*) INTO v_cnt FROM public.whatsapp_numbers WHERE member_id=v_seed_member AND number='3001112233' AND is_primary_phone=false AND deleted_at IS NULL;
+  IF v_cnt <> 1 THEN RAISE EXCEPTION 'FAIL: CASE5c whatsapp_numbers row missing (% rows)', v_cnt; END IF;
+  SELECT count(*) INTO v_cnt_after FROM public.members;
+  IF v_cnt_after <> v_cnt_before+1 THEN RAISE EXCEPTION 'FAIL: CASE5c should insert 1 member % -> %', v_cnt_before, v_cnt_after; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.retreat_registrations WHERE id=v_r_seed AND transferred_at IS NOT NULL AND transferred_member_id=v_seed_member AND transferred_by=v_leader) THEN
+    RAISE EXCEPTION 'FAIL: CASE5c transferred_* stamps missing';
+  END IF;
+  RAISE NOTICE 'PASS: CASE5c seed-style inscrito without payments -> Valientes with whatsapp propagation';
+
   -- CASE 6: member_id IS NOT NULL -> UPDATE pastoral_group no extra row
   SELECT count(*) INTO v_cnt_before FROM public.members;
   SET LOCAL ROLE authenticated;
@@ -163,6 +212,10 @@ BEGIN
   IF v_new_member <> v_member_linked THEN RAISE EXCEPTION 'FAIL: CASE6 should return linked member id % got %', v_member_linked, v_new_member; END IF;
   SELECT pastoral_group INTO v_pastoral FROM public.members WHERE id=v_member_linked;
   IF v_pastoral <>'Valientes' THEN RAISE EXCEPTION 'FAIL: CASE6 pastoral_group Valientes'; END IF;
+  SELECT has_whatsapp INTO v_ww_has FROM public.members WHERE id=v_member_linked;
+  IF v_ww_has IS NOT TRUE THEN RAISE EXCEPTION 'FAIL: CASE6 has_whatsapp OR-propagation got %', v_ww_has; END IF;
+  SELECT count(*) INTO v_cnt FROM public.whatsapp_numbers WHERE member_id=v_member_linked AND number='3008887777' AND deleted_at IS NULL;
+  IF v_cnt <> 1 THEN RAISE EXCEPTION 'FAIL: CASE6 whatsapp_numbers row missing (% rows)', v_cnt; END IF;
   SELECT count(*) INTO v_cnt_after FROM public.members;
   IF v_cnt_after <> v_cnt_before THEN RAISE EXCEPTION 'FAIL: CASE6 should not insert new member % -> %', v_cnt_before, v_cnt_after; END IF;
   RAISE NOTICE 'PASS: CASE6 member_id NOT NULL -> UPDATE pastoral_group';

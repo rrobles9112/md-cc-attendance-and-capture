@@ -56,6 +56,7 @@ function memberToInitialValues(member: Member): CaptureFormInitialValues {
     birthday: member.birthday ?? "",
     isMinor: member.is_minor,
     legalRepName: member.legal_rep_name ?? "",
+    hasWhatsapp: member.has_whatsapp,
   };
 }
 

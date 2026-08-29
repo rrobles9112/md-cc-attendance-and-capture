@@ -42,6 +42,8 @@ const adultPayload: CaptureSubmitPayload = {
   sensitiveConsent: false,
   denomination: 'Católica',
   communityName: 'San Pablo',
+  hasWhatsapp: true,
+  additionalWhatsapp: '+573009876543',
 }
 
 describe('retreat constants', () => {
@@ -72,6 +74,8 @@ describe('submitRetreatPreinscription', () => {
       p_sensitive_consent: false,
       p_denomination: 'Católica',
       p_community_name: 'San Pablo',
+      p_has_whatsapp: true,
+      p_whatsapp_number: '+573009876543',
     })
     expect(fromMock).not.toHaveBeenCalled()
   })
@@ -81,12 +85,16 @@ describe('submitRetreatPreinscription', () => {
       ...adultPayload,
       birthday: '',
       legalRepName: '  ',
+      hasWhatsapp: false,
+      additionalWhatsapp: '   ',
     })
 
     expect(rpcMock).toHaveBeenCalledTimes(1)
     const [, args] = rpcMock.mock.calls[0] as [string, Record<string, unknown>]
     expect(args.p_birthday).toBeNull()
     expect(args.p_legal_rep_name).toBeNull()
+    expect(args.p_has_whatsapp).toBe(false)
+    expect(args.p_whatsapp_number).toBeNull()
     expect(args).not.toHaveProperty('amount')
     expect(args).not.toHaveProperty('money')
     expect(args).not.toHaveProperty('status')
@@ -99,10 +107,12 @@ describe('submitRetreatPreinscription', () => {
       'p_denomination',
       'p_email',
       'p_general_consent',
+      'p_has_whatsapp',
       'p_legal_rep_name',
       'p_name',
       'p_phone',
       'p_sensitive_consent',
+      'p_whatsapp_number',
     ])
   })
 

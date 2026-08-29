@@ -23,6 +23,8 @@ const basePayload: CaptureSubmitPayload = {
   sensitiveConsent: false,
   denomination: 'Catolica',
   communityName: 'San Pablo',
+  hasWhatsapp: false,
+  additionalWhatsapp: '',
 }
 
 describe('submitRetreatPreinscriptionForMember adapter', () => {
@@ -43,6 +45,27 @@ describe('submitRetreatPreinscriptionForMember adapter', () => {
       p_sensitive_consent: false,
       p_denomination: 'Catolica',
       p_community_name: 'San Pablo',
+      p_has_whatsapp: false,
+      p_whatsapp_number: null,
+    })
+  })
+
+  it('passes whatsapp fields: true flag and trimmed additional number', async () => {
+    await submitRetreatPreinscriptionForMember('member-uuid-123', {
+      ...basePayload,
+      hasWhatsapp: true,
+      additionalWhatsapp: '  +573009876543  ',
+    })
+    expect(rpcMock).toHaveBeenCalledWith('register_retreat_preinscription_for_member', {
+      p_member_id: 'member-uuid-123',
+      p_birthday: '2000-01-15',
+      p_legal_rep_name: null,
+      p_general_consent: true,
+      p_sensitive_consent: false,
+      p_denomination: 'Catolica',
+      p_community_name: 'San Pablo',
+      p_has_whatsapp: true,
+      p_whatsapp_number: '+573009876543',
     })
   })
 

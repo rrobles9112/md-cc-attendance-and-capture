@@ -50,6 +50,8 @@ export type CaptureSubmitPayload = {
   sensitiveConsent: boolean
   denomination: string
   communityName: string
+  hasWhatsapp: boolean
+  additionalWhatsapp: string
 }
 
 export type CaptureFormInitialValues = Partial<CaptureSubmitPayload>
@@ -71,7 +73,8 @@ function captureFormConfig(variant: CaptureFormVariant) {
         successToast: 'Miembro registrado exitosamente',
         errorToast: 'Error al registrar el miembro',
         privacyNotice: PRIVACY_NOTICE_ES,
-        showOptionalContactCards: true,
+        showWhatsappCard: true,
+        showSocialMediaCard: true,
       }
     case 'retreat':
       return {
@@ -81,7 +84,8 @@ function captureFormConfig(variant: CaptureFormVariant) {
         successToast: RETREAT_SUCCESS_MESSAGE,
         errorToast: RETREAT_ERROR_MESSAGE,
         privacyNotice: RETREAT_PRIVACY_NOTICE_ES,
-        showOptionalContactCards: false,
+        showWhatsappCard: true,
+        showSocialMediaCard: false,
       }
     default: {
       const exhaustive: never = variant
@@ -139,6 +143,7 @@ export function CaptureForm({
     if (initialValues.email !== undefined) setEmail(initialValues.email)
     if (initialValues.birthday !== undefined) handleBirthdayChange(initialValues.birthday)
     if (initialValues.legalRepName !== undefined) setLegalRepName(initialValues.legalRepName)
+    if (initialValues.hasWhatsapp !== undefined) setHasWhatsapp(initialValues.hasWhatsapp)
   }, [initialValues, handleBirthdayChange])
 
   function addSocialMedia() {
@@ -196,6 +201,8 @@ export function CaptureForm({
         sensitiveConsent,
         denomination,
         communityName,
+        hasWhatsapp,
+        additionalWhatsapp: additionalWhatsapp.trim(),
       }
 
       if (submitAdapter) {
@@ -410,94 +417,94 @@ export function CaptureForm({
         </CardContent>
       </Card>
 
-      {copy.showOptionalContactCards && (
-        <>
-          <Card>
-            <CardHeader>
-              <CardTitle>WhatsApp</CardTitle>
-              <CardDescription>Información de WhatsApp (opcional)</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="hasWhatsapp"
-                  checked={hasWhatsapp}
-                  onCheckedChange={(checked) => setHasWhatsapp(checked === true)}
-                />
-                <Label htmlFor="hasWhatsapp">El número principal tiene WhatsApp</Label>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="additionalWhatsapp">Número adicional de WhatsApp</Label>
-                <Input
-                  id="additionalWhatsapp"
-                  type="tel"
-                  value={additionalWhatsapp}
-                  onChange={(e) => setAdditionalWhatsapp(e.target.value)}
-                  placeholder="+573009876543"
-                />
-              </div>
-            </CardContent>
-          </Card>
+      {copy.showWhatsappCard && (
+        <Card>
+          <CardHeader>
+            <CardTitle>WhatsApp</CardTitle>
+            <CardDescription>Información de WhatsApp (opcional)</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="hasWhatsapp"
+                checked={hasWhatsapp}
+                onCheckedChange={(checked) => setHasWhatsapp(checked === true)}
+              />
+              <Label htmlFor="hasWhatsapp">El número principal tiene WhatsApp</Label>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="additionalWhatsapp">Número adicional de WhatsApp</Label>
+              <Input
+                id="additionalWhatsapp"
+                type="tel"
+                value={additionalWhatsapp}
+                onChange={(e) => setAdditionalWhatsapp(e.target.value)}
+                placeholder="+573009876543"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Redes sociales</CardTitle>
-                  <CardDescription>Perfiles en redes sociales (opcional)</CardDescription>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowSocialMedia(!showSocialMedia)}
-                >
-                  {showSocialMedia ? 'Ocultar' : 'Agregar'}
-                </Button>
+      {copy.showSocialMediaCard && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Redes sociales</CardTitle>
+                <CardDescription>Perfiles en redes sociales (opcional)</CardDescription>
               </div>
-            </CardHeader>
-            {showSocialMedia && (
-              <CardContent className="space-y-3">
-                {socialMedia.map((sm, index) => (
-                  <div key={index} className="flex items-end gap-2">
-                    <div className="w-32 space-y-1">
-                      {index === 0 && <Label>Plataforma</Label>}
-                      <select
-                        value={sm.platform}
-                        onChange={(e) => updateSocialMedia(index, 'platform', e.target.value)}
-                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                      >
-                        {SOCIAL_PLATFORMS.map((p) => (
-                          <option key={p.value} value={p.value}>{p.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      {index === 0 && <Label>Usuario</Label>}
-                      <Input
-                        value={sm.handle}
-                        onChange={(e) => updateSocialMedia(index, 'handle', e.target.value)}
-                        placeholder="@usuario"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeSocialMedia(index)}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSocialMedia(!showSocialMedia)}
+              >
+                {showSocialMedia ? 'Ocultar' : 'Agregar'}
+              </Button>
+            </div>
+          </CardHeader>
+          {showSocialMedia && (
+            <CardContent className="space-y-3">
+              {socialMedia.map((sm, index) => (
+                <div key={index} className="flex items-end gap-2">
+                  <div className="w-32 space-y-1">
+                    {index === 0 && <Label>Plataforma</Label>}
+                    <select
+                      value={sm.platform}
+                      onChange={(e) => updateSocialMedia(index, 'platform', e.target.value)}
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
                     >
-                      <X className="h-4 w-4" />
-                    </Button>
+                      {SOCIAL_PLATFORMS.map((p) => (
+                        <option key={p.value} value={p.value}>{p.label}</option>
+                      ))}
+                    </select>
                   </div>
-                ))}
-                <Button type="button" variant="outline" size="sm" onClick={addSocialMedia}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Agregar red social
-                </Button>
-              </CardContent>
-            )}
-          </Card>
-        </>
+                  <div className="flex-1 space-y-1">
+                    {index === 0 && <Label>Usuario</Label>}
+                    <Input
+                      value={sm.handle}
+                      onChange={(e) => updateSocialMedia(index, 'handle', e.target.value)}
+                      placeholder="@usuario"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeSocialMedia(index)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button type="button" variant="outline" size="sm" onClick={addSocialMedia}>
+                <Plus className="mr-2 h-4 w-4" />
+                Agregar red social
+              </Button>
+            </CardContent>
+          )}
+        </Card>
       )}
 
       <Card>

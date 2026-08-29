@@ -133,6 +133,8 @@ describe('CaptureForm submit paths', () => {
       sensitiveConsent: false,
       denomination: '',
       communityName: '',
+      hasWhatsapp: false,
+      additionalWhatsapp: '',
     })
     expect(membersAddMock).not.toHaveBeenCalled()
     expect(enqueueMock).not.toHaveBeenCalled()
@@ -152,12 +154,12 @@ describe('CaptureForm submit paths', () => {
     expect(membersAddMock).not.toHaveBeenCalled()
   })
 
-  it('hides WhatsApp and social cards and uses retreat copy for variant=retreat', () => {
+  it('shows WhatsApp card but hides social card and uses retreat copy for variant=retreat', () => {
     render(<CaptureForm variant="retreat" submitAdapter={vi.fn()} />)
 
     expect(screen.getByRole('button', { name: RETREAT_SUBMIT_LABEL })).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Registrar miembro' })).not.toBeInTheDocument()
-    expect(screen.queryByText('WhatsApp')).not.toBeInTheDocument()
+    expect(screen.getByText('WhatsApp')).toBeInTheDocument()
     expect(screen.queryByText('Redes sociales')).not.toBeInTheDocument()
     expect(screen.getByText(/PREINSCRIPCIÓN AL RETIRO JUVENIL/)).toBeVisible()
     expect(screen.getByText(/Contacto con el preinscrito o su representante legal/)).toBeVisible()
