@@ -28,6 +28,12 @@ vi.mock("@/lib/settings/app-settings", () => ({
   setRetreatTotalCost: vi.fn(),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => "/retreat-registrations",
+}));
+
 let registrationsData: unknown[] = [];
 let registrationsCount: number | null = 45;
 let paymentsData: unknown[] = [];
