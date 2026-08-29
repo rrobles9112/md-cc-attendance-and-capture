@@ -11,6 +11,8 @@ import {
   canExport,
   canManageARCO,
   canManageRetreatRegistrations,
+  canManageAttendanceSessions,
+  canRecordRetreatPayments,
   canViewPastoreo,
   canManageWhatsappSettings,
   requirePermission,
@@ -163,21 +165,44 @@ describe("RBAC Guards", () => {
   });
 
   describe("canManageRetreatRegistrations", () => {
-    it("is true for leader, matching canCreate used by the staff retreat page and nav", () => {
-      expect(canManageRetreatRegistrations("leader")).toBe(true);
-      expect(canManageRetreatRegistrations("leader")).toBe(canCreate("leader"));
-    });
-
-    it("is true for super_admin", () => {
+    it("is true for super_admin (retreat module open to all staff roles)", () => {
       expect(canManageRetreatRegistrations("super_admin")).toBe(true);
-      expect(canManageRetreatRegistrations("super_admin")).toBe(
-        canCreate("super_admin"),
-      );
     });
 
-    it("is false for server so the staff retreat page hides payments", () => {
-      expect(canManageRetreatRegistrations("server")).toBe(false);
-      expect(canManageRetreatRegistrations("server")).toBe(canCreate("server"));
+    it("is true for leader", () => {
+      expect(canManageRetreatRegistrations("leader")).toBe(true);
+    });
+
+    it("is true for server (preinscriptions open to every staff role per product decision)", () => {
+      expect(canManageRetreatRegistrations("server")).toBe(true);
+    });
+  });
+
+  describe("canManageAttendanceSessions", () => {
+    it("is true for super_admin only (create/edit/delete sessions)", () => {
+      expect(canManageAttendanceSessions("super_admin")).toBe(true);
+    });
+
+    it("is false for leader", () => {
+      expect(canManageAttendanceSessions("leader")).toBe(false);
+    });
+
+    it("is false for server", () => {
+      expect(canManageAttendanceSessions("server")).toBe(false);
+    });
+  });
+
+  describe("canRecordRetreatPayments", () => {
+    it("is true for super_admin (mirrors retreat_payments RLS)", () => {
+      expect(canRecordRetreatPayments("super_admin")).toBe(true);
+    });
+
+    it("is true for leader", () => {
+      expect(canRecordRetreatPayments("leader")).toBe(true);
+    });
+
+    it("is false for server (sees the retreat module but not payments)", () => {
+      expect(canRecordRetreatPayments("server")).toBe(false);
     });
   });
 

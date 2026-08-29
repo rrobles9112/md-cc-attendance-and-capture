@@ -12,8 +12,28 @@ export function canCreate(role: AppRole): boolean {
   return hasPermission(role, "canCreate");
 }
 
+/**
+ * The retreat module (preinscriptions) is open to every staff role
+ * (super_admin, leader, server), per product decision.
+ */
 export function canManageRetreatRegistrations(role: AppRole): boolean {
-  return canCreate(role);
+  return role === "super_admin" || role === "leader" || role === "server";
+}
+
+/**
+ * Attendance sessions are managed exclusively by super_admin
+ * (create/edit/delete), per product decision.
+ */
+export function canManageAttendanceSessions(role: AppRole): boolean {
+  return role === "super_admin";
+}
+
+/**
+ * Retreat payment recording mirrors the retreat_payments RLS policies
+ * (super_admin + leader). Server sees the retreat module but not payments.
+ */
+export function canRecordRetreatPayments(role: AppRole): boolean {
+  return role === "super_admin" || role === "leader";
 }
 
 export function canModify(role: AppRole): boolean {

@@ -123,13 +123,16 @@ describe('retreat-registrations create-preinscription gate (PR #4 T-403)', () =>
     expect(toolbar).not.toBeNull()
   })
 
-  it("(b) role 'server' → button absent AND the existing \"No tiene permisos para acceder a esta sección\" notice present — pins page early-return permission gate", async () => {
+  it("(b) role 'server' → button present in the no-print toolbar AND no permission notice — retreat module open to all staff roles (018 product decision)", async () => {
     mockUseRole.mockReturnValue({ role: 'server', loading: false } as never)
     const Page = (await import('../page')).default
     render(<Page />)
-    // Permission notice must be present
-    expect(await screen.findByText('No tiene permisos para acceder a esta sección')).toBeInTheDocument()
-    // Button must be absent — dialog not reachable from that session (spec \"hidden or disabled\" satisfied by hidden)
-    expect(screen.queryByRole('button', { name: /Nueva preinscripción/i })).not.toBeInTheDocument()
+    // Page renders for server — permission notice must be gone
+    await waitFor(() => expect(mockSelect).toHaveBeenCalled())
+    expect(screen.queryByText('No tiene permisos para acceder a esta sección')).not.toBeInTheDocument()
+    // Button must be present inside the no-print toolbar
+    const button = await screen.findByRole('button', { name: /Nueva preinscripción/i })
+    const toolbar = button.closest('.no-print')
+    expect(toolbar).not.toBeNull()
   })
 })

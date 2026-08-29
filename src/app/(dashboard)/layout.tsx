@@ -5,7 +5,6 @@ import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useRole } from '@/hooks/useRole'
 import {
-  canCreate,
   canMarkAttendance,
   canManageUsers,
   canViewAudit,
@@ -84,7 +83,7 @@ export default function DashboardLayout({
   }
 
   const navItems: NavItem[] = [
-    { href: '/capture', label: 'Capturar', icon: UserPlus, show: canCreate(role) },
+    { href: '/capture', label: 'Capturar', icon: UserPlus, show: true },
     { href: '/retreat-registrations', label: 'Retiro', icon: Calendar, show: canManageRetreatRegistrations(role) },
     { href: '/pastoreo', label: 'Pastoreo', icon: HeartHandshake, show: !!role && canViewPastoreo(role) },
     { href: '/attendance', label: 'Asistencia', icon: ClipboardCheck, show: canMarkAttendance(role) },

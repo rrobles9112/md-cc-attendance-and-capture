@@ -229,6 +229,8 @@ describe('AttendanceGrid', () => {
   })
 
   it('memoized filter avoids unnecessary recomputation', async () => {
+    // Session management (Nueva sesión) is super_admin-only since 018.
+    harness.role = 'super_admin'
     await renderGridAtTwoOfTen()
     const callsAfterLoad = harness.filterCalls
     expect(callsAfterLoad).toBeGreaterThan(0)

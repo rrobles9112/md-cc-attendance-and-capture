@@ -21,7 +21,9 @@ DECLARE
   v_server_id UUID;
   v_member_id UUID;
   v_leader_member_id UUID;
+  v_server_member_id UUID;
   v_session_id UUID;
+  v_retreat_registration_id UUID;
 BEGIN
   -- Deterministic IDs from supabase/seed.sql
   v_super_admin_id := 'a0000000-0000-4000-8000-000000000001';
@@ -62,24 +64,14 @@ BEGIN
 
   RAISE NOTICE 'PASS: leader can INSERT members';
 
-  -- Test 3: server CANNOT INSERT members
+  -- Test 3: server can INSERT members (capture open to all roles)
   PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_server_id::text)::text, true);
 
-  BEGIN
-    INSERT INTO members (name, name_normalized, phone, email, consent_recorded, created_by)
-    VALUES ('RLS Server Member', 'rls server member', '+573001110003', 'rls-server-member@test.com', true, v_server_id);
-    RAISE EXCEPTION 'FAIL: server should NOT be able to INSERT members';
-  EXCEPTION
-    WHEN insufficient_privilege THEN
-      RAISE NOTICE 'PASS: server CANNOT INSERT members (RLS blocked)';
-    WHEN OTHERS THEN
-      -- Some PostgREST/RLS setups raise check_violation or query_canceled equivalents;
-      -- treat any failure of the INSERT as the expected deny path when no row appears.
-      IF SQLERRM LIKE 'FAIL:%' THEN
-        RAISE;
-      END IF;
-      RAISE NOTICE 'PASS: server CANNOT INSERT members (RLS blocked: %)', SQLERRM;
-  END;
+  INSERT INTO members (name, name_normalized, phone, email, consent_recorded, created_by)
+  VALUES ('RLS Server Member', 'rls server member', '+573001110003', 'rls-server-member@test.com', true, v_server_id)
+  RETURNING id INTO v_server_member_id;
+
+  RAISE NOTICE 'PASS: server can INSERT members (capture open to all roles)';
 
   -- Test 4: leader CANNOT UPDATE members
   PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_leader_id::text)::text, true);
@@ -117,6 +109,27 @@ BEGIN
       RAISE NOTICE 'PASS: leader CANNOT DELETE members (RLS blocked: %)', SQLERRM;
   END;
 
+  -- Test 5b: leader CANNOT INSERT sessions (super_admin only, 018)
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_leader_id::text)::text, true);
+
+  BEGIN
+    INSERT INTO sessions (name, session_date, created_by)
+    VALUES ('RLS Leader Session', '2026-07-18', v_leader_id);
+    RAISE EXCEPTION 'FAIL: leader should NOT be able to INSERT sessions';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'PASS: leader CANNOT INSERT sessions (super_admin only)';
+    WHEN OTHERS THEN
+      IF SQLERRM LIKE 'FAIL:%' THEN
+        RAISE;
+      END IF;
+      IF SQLSTATE = '42501' OR SQLERRM LIKE '%row-level security%' THEN
+        RAISE NOTICE 'PASS: leader CANNOT INSERT sessions (super_admin only)';
+      ELSE
+        RAISE;
+      END IF;
+  END;
+
   -- Test 6: server can INSERT attendance
   PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_super_admin_id::text)::text, true);
   INSERT INTO sessions (name, session_date, created_by)
@@ -128,6 +141,21 @@ BEGIN
   VALUES (v_member_id, v_session_id, v_server_id);
 
   RAISE NOTICE 'PASS: server can INSERT attendance';
+
+  -- Test 6b: server can DELETE attendance (un-mark, 018)
+  DELETE FROM attendance
+  WHERE member_id = v_member_id AND session_id = v_session_id AND marked_by = v_server_id;
+  IF EXISTS (
+    SELECT 1 FROM attendance
+    WHERE member_id = v_member_id AND session_id = v_session_id AND marked_by = v_server_id
+  ) THEN
+    RAISE EXCEPTION 'FAIL: server should be able to DELETE its attendance row';
+  END IF;
+  RAISE NOTICE 'PASS: server can DELETE attendance (un-mark)';
+
+  -- Re-insert so later assertions and the cleanup block stay valid.
+  INSERT INTO attendance (member_id, session_id, marked_by)
+  VALUES (v_member_id, v_session_id, v_server_id);
 
   -- Test 7: super_admin can UPDATE members
   PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_super_admin_id::text)::text, true);
@@ -157,10 +185,21 @@ BEGIN
   END IF;
   RAISE NOTICE 'PASS: super_admin can soft-delete members';
 
-  -- Cleanup ephemeral rows only — keep seeded auth users / sample data
+  -- Test 9: server can register retreat preinscription for a member via RPC (018)
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_server_id::text)::text, true);
+  v_retreat_registration_id := public.register_retreat_preinscription_for_member(v_server_member_id, NULL, NULL, true, false, NULL, NULL);
+  IF v_retreat_registration_id IS NULL THEN
+    RAISE EXCEPTION 'FAIL: server preinscription RPC returned NULL';
+  END IF;
+  RAISE NOTICE 'PASS: server can register retreat preinscription for member';
+
+  -- Cleanup ephemeral rows only — keep seeded auth users / sample data.
+  -- The ephemeral retreat_registrations row (v_retreat_registration_id) is
+  -- left in place intentionally: the table has no DELETE policy for
+  -- authenticated, and tests run after `db reset`, which rebuilds from seed.
   DELETE FROM attendance WHERE session_id = v_session_id;
   DELETE FROM sessions WHERE id = v_session_id;
-  DELETE FROM members WHERE id IN (v_member_id, v_leader_member_id);
+  DELETE FROM members WHERE id IN (v_member_id, v_leader_member_id, v_server_member_id);
 
   RAISE NOTICE 'All RLS tests passed';
 END $$;

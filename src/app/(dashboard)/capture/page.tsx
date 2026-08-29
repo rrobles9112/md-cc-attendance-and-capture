@@ -3,26 +3,17 @@
 import { CaptureForm } from '@/components/forms/CaptureForm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useRole } from '@/hooks/useRole'
-import { canCreate } from '@/lib/rbac/guards'
 
 export default function CapturePage() {
-  const { role, loading } = useRole()
+  const { loading } = useRole()
 
   if (loading) return null
 
-  // The sidebar already hides this route for roles without canCreate, but a
-  // direct navigation (bookmark, browser history, PWA shortcut) would still
-  // reach this page. Without this guard the form silently queues a member
-  // insert that the `members_insert` RLS policy always rejects with 42501,
-  // which only surfaces later as a stuck "Error de sincronización" badge.
-  if (!role || !canCreate(role)) {
-    return (
-      <div className="flex h-48 items-center justify-center text-muted-foreground">
-        No tiene permisos para acceder a esta sección
-      </div>
-    )
-  }
-
+  // This page renders for every authenticated dashboard role (super_admin,
+  // leader, server). The `members_insert` RLS policy now accepts every staff
+  // role (server included), so a direct navigation (bookmark, browser
+  // history, PWA shortcut) no longer queues a member insert that RLS would
+  // reject with 42501 and surface later as a stuck sync error badge.
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>

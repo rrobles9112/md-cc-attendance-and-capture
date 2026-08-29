@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useRole } from '@/hooks/useRole'
-import { canManageRetreatRegistrations, canManageUsers, canTransferRetreatToValientes } from '@/lib/rbac/guards'
+import { canManageRetreatRegistrations, canManageUsers, canRecordRetreatPayments, canTransferRetreatToValientes } from '@/lib/rbac/guards'
 import { RETREAT_EVENT_KEY } from '@/lib/retreat/constants'
 import { RetreatPreinscriptionCreate } from '@/components/retreat/RetreatPreinscriptionCreate'
 import { buildReportRows, exportRetreatToXLSX, formatYYYYMMDD } from '@/lib/retreat/export'
@@ -199,6 +199,7 @@ export default function RetreatRegistrationsPage() {
 
   const parsedTotal = parsePositiveTotal(storedTotal)
   const paymentsBlocked = isRetreatPaymentBlocked(storedTotal)
+  const canRecordPayments = !!role && canRecordRetreatPayments(role)
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
   const fromDisplay = totalCount === 0 ? 0 : (page - 1) * pageSize + 1
   const toDisplay = Math.min(page * pageSize, totalCount)
@@ -217,6 +218,9 @@ export default function RetreatRegistrationsPage() {
   }
 
   async function handleRecordPayment(registrationId: string) {
+        // Defense in depth: the UI hides the payment cell for roles without
+        // payment permission; this mirrors the retreat_payments RLS policies.
+        if (!role || !canRecordRetreatPayments(role)) return
         const amount = Number(amountDrafts[registrationId])
         if (!(amount > 0)) {
           toast.error('El monto de la cuota debe ser mayor que cero')
@@ -510,6 +514,8 @@ export default function RetreatRegistrationsPage() {
                         <TableCell>
                           {paymentsBlocked ? (
                             <span className="text-xs text-muted-foreground">Pagos bloqueados</span>
+                          ) : !canRecordPayments ? (
+                            <span className="text-xs text-muted-foreground">—</span>
                           ) : (
                             <div className="flex items-center gap-2">
                               <Input

@@ -6,7 +6,9 @@ import { enqueue } from '@/lib/sync/queue'
 import { useRealtime } from '@/hooks/useRealtime'
 import { useCacheHydration } from '@/hooks/useCacheHydration'
 import { useRole } from '@/hooks/useRole'
-import { canCreate } from '@/lib/rbac/guards'
+import { canManageAttendanceSessions } from '@/lib/rbac/guards'
+import { softDelete } from '@/lib/delete/soft-delete'
+import { Pencil, Trash2 } from 'lucide-react'
 import { resolveAttendanceConflict } from '@/lib/sync/conflict'
 import {
   countPresent,
@@ -53,6 +55,11 @@ export function AttendanceGrid({ sessions, onSessionCreated }: AttendanceGridPro
   const [newSessionName, setNewSessionName] = useState('')
   const [newSessionDate, setNewSessionDate] = useState(new Date().toISOString().split('T')[0])
   const [showNewSession, setShowNewSession] = useState(false)
+  const [editingSession, setEditingSession] = useState<Session | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editDate, setEditDate] = useState('')
+
+  const canManageSessions = !!role && canManageAttendanceSessions(role)
 
   const loadMembers = useCallback(async () => {
     const allMembers = await db.members
@@ -178,6 +185,55 @@ export function AttendanceGrid({ sessions, onSessionCreated }: AttendanceGridPro
     onSessionCreated?.()
   }
 
+  function handleStartEditSession() {
+    const session = sessions.find((s) => s.id === selectedSessionId)
+    if (!session) return
+    setEditingSession(session)
+    setEditName(session.name)
+    setEditDate(session.session_date)
+  }
+
+  // Sessions have no updated_at column; a partial update payload (name +
+  // session_date) is enqueued and replayed as a targeted UPDATE by the sync
+  // worker. Only super_admin reaches these handlers (canManageSessions gate).
+  async function handleSaveSession() {
+    if (!editingSession) return
+    if (!editName.trim()) {
+      toast.error('El nombre de la sesión es obligatorio')
+      return
+    }
+    try {
+      await db.sessions.update(editingSession.id, { name: editName.trim(), session_date: editDate })
+      await enqueue('sessions', editingSession.id, 'update', {
+        name: editName.trim(),
+        session_date: editDate,
+      })
+      toast.success('Sesión actualizada')
+      setEditingSession(null)
+      onSessionCreated?.()
+    } catch {
+      toast.error('Error al actualizar la sesión')
+    }
+  }
+
+  // Soft delete locally + enqueue the deleted_at stamp; the remote
+  // sessions_update RLS policy (super_admin only) applies the same change.
+  async function handleDeleteSession() {
+    if (!selectedSessionId) return
+    if (!confirm('¿Está seguro de eliminar esta sesión? Esta acción no se puede deshacer.')) return
+    try {
+      await softDelete('sessions', selectedSessionId)
+      await enqueue('sessions', selectedSessionId, 'update', {
+        deleted_at: new Date().toISOString(),
+      })
+      toast.success('Sesión eliminada')
+      setSelectedSessionId('')
+      onSessionCreated?.()
+    } catch {
+      toast.error('Error al eliminar la sesión')
+    }
+  }
+
   const deferredSearch = useDeferredValue(search)
   const filteredMembers = useMemo(
     () => filterBySearch(members, deferredSearch),
@@ -212,12 +268,56 @@ export function AttendanceGrid({ sessions, onSessionCreated }: AttendanceGridPro
             </SelectContent>
           </Select>
         </div>
-        {role && canCreate(role) && (
+        {canManageSessions && (
           <Button variant="outline" onClick={() => setShowNewSession(!showNewSession)}>
             {showNewSession ? 'Cancelar' : 'Nueva sesión'}
           </Button>
         )}
+        {canManageSessions && selectedSessionId && (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleStartEditSession}>
+              <Pencil className="mr-1 h-4 w-4" /> Editar
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="text-destructive hover:text-destructive"
+              title="Eliminar"
+              aria-label="Eliminar sesión"
+              onClick={() => void handleDeleteSession()}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
+
+      {editingSession && (
+        <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-end">
+          <div className="flex-1 space-y-2">
+            <Label htmlFor="editSessionName">Nombre de la sesión</Label>
+            <Input
+              id="editSessionName"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              placeholder="Viernes 18 Julio"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="editSessionDate">Fecha</Label>
+            <Input
+              id="editSessionDate"
+              type="date"
+              value={editDate}
+              onChange={(e) => setEditDate(e.target.value)}
+            />
+          </div>
+          <Button onClick={() => void handleSaveSession()}>Guardar</Button>
+          <Button variant="outline" onClick={() => setEditingSession(null)}>
+            Cancelar
+          </Button>
+        </div>
+      )}
 
       {showNewSession && (
         <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-end">
