@@ -12,6 +12,26 @@ export class AdminUserStoreError extends Error {
   }
 }
 
+export const CONFLICT_EMAIL_MESSAGE_ES = 'Ya existe una cuenta registrada con ese correo electrónico.'
+
+const DUPLICATE_EMAIL_MESSAGE = /already registered|user_already_exists/i
+
+/**
+ * GoTrue admin createUser signals a duplicate email with "User already registered"
+ * (HTTP 422). parseCreateUserInput already rejects short passwords / malformed
+ * emails (400) before GoTrue is called, so a 422 at this call site is not a
+ * password/format validation failure; those phrasings are excluded anyway.
+ */
+export function isDuplicateEmailAuthError(error: unknown): boolean {
+  if (error === null || typeof error !== 'object') return false
+  const { message, code, status } = error as { message?: unknown; code?: unknown; status?: unknown }
+  const messageText = typeof message === 'string' ? message : ''
+  if (DUPLICATE_EMAIL_MESSAGE.test(messageText)) return true
+  if (code === 'user_already_exists') return true
+  if (/password/i.test(messageText)) return false
+  return code === '422' || status === 422
+}
+
 export function createServiceRoleClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -36,6 +56,9 @@ export function createSupabaseAdminStore(): AdminUserStore {
         app_metadata: { role: input.role },
       })
       if (error || !data.user) {
+        if (isDuplicateEmailAuthError(error)) {
+          throw new AdminUserStoreError('conflict', CONFLICT_EMAIL_MESSAGE_ES)
+        }
         throw new AdminUserStoreError('auth_failed', error?.message ?? 'Could not create auth user')
       }
       return { id: data.user.id }
