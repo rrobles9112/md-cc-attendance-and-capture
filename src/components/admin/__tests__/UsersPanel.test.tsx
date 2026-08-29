@@ -1,10 +1,13 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { UsersPanel, type ManagedUser } from '../UsersPanel'
+import { CONFLICT_EMAIL_MESSAGE_ES } from '@/lib/admin/user-store'
 
 const createAdminUser = vi.hoisted(() => vi.fn())
 const updateAdminUser = vi.hoisted(() => vi.fn())
 const deleteAdminUser = vi.hoisted(() => vi.fn())
+const toastSuccess = vi.hoisted(() => vi.fn())
+const toastError = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/admin/user-api', () => ({
   createAdminUser,
@@ -18,7 +21,7 @@ vi.mock('@/lib/admin/user-api', () => ({
 }))
 
 vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: toastSuccess, error: toastError },
 }))
 
 const users: ManagedUser[] = [
@@ -95,5 +98,26 @@ describe('UsersPanel', () => {
     await waitFor(() => {
       expect(deleteAdminUser).toHaveBeenCalledWith('leader-1')
     })
+  })
+
+  it('shows the es-CO conflict toast and keeps the create form open when the email is already registered', async () => {
+    createAdminUser.mockRejectedValue(new Error(CONFLICT_EMAIL_MESSAGE_ES))
+    render(<UsersPanel users={users} currentUserId="self" onChanged={onChanged} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Crear usuario' }))
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Ana Leader' } })
+    fireEvent.change(screen.getByLabelText('Correo'), { target: { value: 'leader@church.com' } })
+    fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'secure-pass' } })
+    fireEvent.change(screen.getByLabelText('Rol'), { target: { value: 'leader' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Crear' }))
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledTimes(1)
+    })
+    expect(toastError).toHaveBeenCalledWith(CONFLICT_EMAIL_MESSAGE_ES)
+    expect(toastError).not.toHaveBeenCalledWith('Error al crear el usuario')
+    expect(onChanged).not.toHaveBeenCalled()
+    expect((screen.getByLabelText('Correo') as HTMLInputElement).value).toBe('leader@church.com')
+    expect((screen.getByLabelText('Nombre') as HTMLInputElement).value).toBe('Ana Leader')
   })
 })

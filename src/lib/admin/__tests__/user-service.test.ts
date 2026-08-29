@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AdminUserPolicyError } from '../user-policy'
 import { createManagedUser, deleteManagedUser, updateManagedUser } from '../user-service'
 import type { AdminUserStore } from '../user-service'
+import { AdminUserStoreError, CONFLICT_EMAIL_MESSAGE_ES } from '../user-store'
 
 const ACTOR = 'actor-super-admin'
 
@@ -46,6 +47,22 @@ describe('createManagedUser', () => {
       role: 'leader',
       is_active: true,
     })
+  })
+
+  it('propagates a store conflict rejection unchanged', async () => {
+    const conflict = new AdminUserStoreError('conflict', CONFLICT_EMAIL_MESSAGE_ES)
+    store.createAuthUser.mockRejectedValue(conflict)
+
+    await expect(
+      createManagedUser(store, {
+        full_name: 'Ana Leader',
+        email: 'leader@church.com',
+        password: 'secure-pass',
+        role: 'leader',
+      }),
+    ).rejects.toBe(conflict)
+
+    expect(store.upsertProfile).not.toHaveBeenCalled()
   })
 })
 
