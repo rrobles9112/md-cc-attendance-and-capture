@@ -7,16 +7,16 @@ import { buildChronicQuery, buildBirthdayScanQuery } from "@/lib/pastoreo/querie
  * When DB is available, runs EXPLAIN (FORMAT JSON) against Supabase local;
  * otherwise asserts migration files + query shapes (skip with log, still compiles).
  */
-describe("pastoreo EXPLAIN gate — indexes 012b", () => {
+describe("pastoreo EXPLAIN gate — indexes 016", () => {
   it("birthday daily scan uses Index Scan not Seq Scan", async () => {
     const fs = await import("node:fs");
-    const path = "supabase/migrations/012b_whatsapp_pastoreo_indexes.sql";
+    const path = "supabase/migrations/016_whatsapp_pastoreo_indexes.sql";
     const exists = fs.existsSync(path);
-    expect(exists, "012b indexes migration must exist").toBe(true);
+    expect(exists, "016 indexes migration must exist").toBe(true);
     if (!exists) return;
     const sql = fs.readFileSync(path, "utf8");
     expect(sql).toContain("idx_members_birthday_month_day");
-    expect(sql).toContain("CONCURRENTLY");
+    expect(sql, "Amendment A1: the CLI applies each migration in a per-file transaction, where CONCURRENTLY is invalid").not.toContain("CONCURRENTLY");
     // Query shape must use expression index columns
     const q = buildBirthdayScanQuery();
     expect(q).toContain("EXTRACT(MONTH FROM m.birthday)");
@@ -27,7 +27,7 @@ describe("pastoreo EXPLAIN gate — indexes 012b", () => {
 
   it("chronic window query uses Index Scan on attendance/session indexes", async () => {
     const fs = await import("node:fs");
-    const path = "supabase/migrations/012b_whatsapp_pastoreo_indexes.sql";
+    const path = "supabase/migrations/016_whatsapp_pastoreo_indexes.sql";
     if (!fs.existsSync(path)) return expect(true).toBe(false);
     const sql = fs.readFileSync(path, "utf8");
     expect(sql).toContain("idx_attendance_member_session");
