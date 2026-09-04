@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useRole } from '@/hooks/useRole'
-import { canManageRetreatRegistrations, canManageUsers, canRecordRetreatPayments, canTransferRetreatToValientes } from '@/lib/rbac/guards'
+import { canDeleteRetreatRegistration, canManageRetreatRegistrations, canManageUsers, canRecordRetreatPayments, canTransferRetreatToValientes } from '@/lib/rbac/guards'
 import { RETREAT_EVENT_KEY } from '@/lib/retreat/constants'
 import { RetreatPreinscriptionCreate } from '@/components/retreat/RetreatPreinscriptionCreate'
 import { buildReportRows, exportRetreatToXLSX, formatYYYYMMDD } from '@/lib/retreat/export'
@@ -89,6 +89,29 @@ function useDebouncedValue<T>(value: T, delay: number): T {
   return debounced
 }
 
+function countPaidByRegistration(
+  payments: Array<{ registration_id: string }>,
+): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const payment of payments) {
+    counts.set(payment.registration_id, (counts.get(payment.registration_id) ?? 0) + 1)
+  }
+  return counts
+}
+
+type DeleteMode = 'both' | 'payments-only' | 'registration-only'
+
+function deleteSuccessToast(mode: DeleteMode): string {
+  switch (mode) {
+    case 'both':
+      return 'Preinscripción y pagos eliminados'
+    case 'payments-only':
+      return 'Pagos eliminados, preinscripción conservada'
+    case 'registration-only':
+      return 'Preinscripción eliminada'
+  }
+}
+
 export default function RetreatRegistrationsPage() {
   const { role, loading } = useRole()
   const [registrations, setRegistrations] = useState<RetreatRegistrationRow[]>([])
@@ -110,6 +133,12 @@ export default function RetreatRegistrationsPage() {
   const [transferConsent, setTransferConsent] = useState(false)
   const [transferDup, setTransferDup] = useState<{ id: string; name: string } | null>(null)
   const [transferring, setTransferring] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<RetreatRegistrationRow | null>(null)
+  const [deleteMode, setDeleteMode] = useState<DeleteMode>('both')
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [paymentCountsByRegistration, setPaymentCountsByRegistration] =
+    useState<Map<string, number>>(new Map())
   const [loadingExport, setLoadingExport] = useState(false)
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
   const [hasSession, setHasSession] = useState(true)
@@ -146,6 +175,7 @@ export default function RetreatRegistrationsPage() {
       if (ids.length === 0) {
         setPayments([])
         setPaidByRegistration(new Map())
+        setPaymentCountsByRegistration(new Map())
         return
       }
       const { data: pays } = (await supabase
@@ -156,6 +186,7 @@ export default function RetreatRegistrationsPage() {
       const paymentsArr = (pays ?? []) as RetreatPaymentRow[]
       setPayments(paymentsArr)
       setPaidByRegistration(sumPaidByRegistration(paymentsArr))
+      setPaymentCountsByRegistration(countPaidByRegistration(paymentsArr))
     } finally {
       setLoadingData(false)
     }
@@ -235,6 +266,7 @@ export default function RetreatRegistrationsPage() {
   const parsedTotal = parsePositiveTotal(storedTotal)
   const paymentsBlocked = isRetreatPaymentBlocked(storedTotal)
   const canRecordPayments = !!role && canRecordRetreatPayments(role)
+  const canDelete = canDeleteRetreatRegistration(role)
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
   const fromDisplay = totalCount === 0 ? 0 : (page - 1) * pageSize + 1
   const toDisplay = Math.min(page * pageSize, totalCount)
@@ -315,6 +347,75 @@ export default function RetreatRegistrationsPage() {
     const ok = await recordPayment(registrationId, remaining)
     if (ok) {
       toast.success('Saldo completado')
+    }
+  }
+
+  function openDeleteDialog(registration: RetreatRegistrationRow) {
+    const sumPaid = paidByRegistration.get(registration.id) ?? 0
+    setDeleteTarget(registration)
+    setDeleteMode(sumPaid > 0 ? 'both' : 'registration-only')
+    setDeleteConfirmed(false)
+  }
+
+  function closeDeleteDialog() {
+    if (deleting) return
+    setDeleteTarget(null)
+    setDeleteConfirmed(false)
+    setDeleting(false)
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteTarget || deleting) return
+    if (deleteMode === 'both' && !deleteConfirmed) return
+    setDeleting(true)
+    const supabase = createClient()
+    // Tracks which DELETE failed so the catch reports the exact toast (design §3).
+    let failedStep: 'payments' | 'registration' = 'payments'
+    try {
+      if (deleteMode === 'both' || deleteMode === 'payments-only') {
+        const expected = paymentCountsByRegistration.get(deleteTarget.id) ?? 0
+        const { data, error } = await supabase
+          .from('retreat_payments')
+          .delete()
+          .eq('registration_id', deleteTarget.id)
+          .select('id')
+        if (error) throw error
+        if (!data || data.length === 0) {
+          toast.error('No tiene permisos para eliminar estos pagos')
+          return
+        }
+        if (expected > 0 && data.length !== expected) {
+          // Borrado parcial (p. ej. pagos concurrentes): recargar y reportar.
+          await loadData()
+          toast.error('El borrado fue parcial, revise los pagos restantes')
+          return
+        }
+      }
+      if (deleteMode === 'both' || deleteMode === 'registration-only') {
+        failedStep = 'registration'
+        const { data, error } = await supabase
+          .from('retreat_registrations')
+          .delete()
+          .eq('id', deleteTarget.id)
+          .select('id')
+        if (error) throw error
+        if (!data || data.length === 0) {
+          // RLS denegó, o (c) con pagos concurrentes bloqueado por FK→error arriba.
+          toast.error('No tiene permisos para eliminar esta preinscripción')
+          return
+        }
+      }
+      toast.success(deleteSuccessToast(deleteMode))
+      setDeleteTarget(null) // cierra el diálogo
+      await loadData()
+    } catch {
+      toast.error(
+        failedStep === 'payments'
+          ? 'Error al eliminar los pagos'
+          : 'Error al eliminar la preinscripción',
+      )
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -533,12 +634,13 @@ export default function RetreatRegistrationsPage() {
               <TableHead>Último abono</TableHead>
               <TableHead className="w-64">Registrar pago</TableHead>
               <TableHead className="w-40">Transferir</TableHead>
+              {canDelete && <TableHead>Acciones</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {registrations.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center text-muted-foreground">
+                <TableCell colSpan={canDelete ? 11 : 10} className="text-center text-muted-foreground">
                   No hay preinscripciones registradas
                 </TableCell>
               </TableRow>
@@ -680,6 +782,18 @@ export default function RetreatRegistrationsPage() {
                             </span>
                           )}
                         </TableCell>
+                        {canDelete && (
+                          <TableCell>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              aria-label={`Eliminar preinscripción de ${registration.name}`}
+                              onClick={() => openDeleteDialog(registration)}
+                            >
+                              Eliminar
+                            </Button>
+                          </TableCell>
+                        )}
                   </TableRow>
                 )
               })
@@ -731,12 +845,83 @@ export default function RetreatRegistrationsPage() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setTransferTarget(null); setTransferConsent(false) }}>Cancelar</Button>
-                <Button disabled={!transferConsent || transferring || !!transferDup} onClick={() => void handleTransfer()}>
-                  {transferring ? 'Transfiriendo...' : 'Transferir'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                    <Button disabled={!transferConsent || transferring || !!transferDup} onClick={() => void handleTransfer()}>
+                      {transferring ? 'Transfiriendo...' : 'Transferir'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open) closeDeleteDialog() }}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Eliminar preinscripción</DialogTitle>
+                    <DialogDescription>
+                      {deleteTarget !== null && (
+                        <>Esta acción afecta a <span className="font-medium">{deleteTarget.name}</span>. Elija qué eliminar.</>
+                      )}
+                    </DialogDescription>
+                  </DialogHeader>
+                  {deleteTarget !== null && (() => {
+                    const sumPaid = paidByRegistration.get(deleteTarget.id) ?? 0
+                    const hasPayments = sumPaid > 0
+                    return (
+                      <div className="space-y-4">
+                        {hasPayments ? (
+                          <div className="space-y-2" role="radiogroup" aria-label="Opciones de eliminación">
+                            <label className="flex items-start gap-2 text-sm">
+                              <input
+                                type="radio"
+                                name="delete-mode"
+                                value="both"
+                                checked={deleteMode === 'both'}
+                                onChange={() => { setDeleteMode('both'); setDeleteConfirmed(false) }}
+                                disabled={deleting}
+                              />
+                              <span>Eliminar preinscripción y pagos</span>
+                            </label>
+                            <label className="flex items-start gap-2 text-sm">
+                              <input
+                                type="radio"
+                                name="delete-mode"
+                                value="payments-only"
+                                checked={deleteMode === 'payments-only'}
+                                onChange={() => { setDeleteMode('payments-only'); setDeleteConfirmed(false) }}
+                                disabled={deleting}
+                              />
+                              <span>Eliminar solo los pagos, conservar la preinscripción</span>
+                            </label>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Eliminar la información de preinscripción
+                          </p>
+                        )}
+                        {deleteMode === 'both' && hasPayments && (
+                          <div className="flex items-start gap-2">
+                            <Checkbox id="delete-confirm" checked={deleteConfirmed} onCheckedChange={(v) => setDeleteConfirmed(v === true)} disabled={deleting} />
+                            <Label htmlFor="delete-confirm" className="text-sm font-medium">
+                              Entiendo que esta acción elimina la preinscripción y sus pagos y no se puede deshacer
+                            </Label>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => closeDeleteDialog()} disabled={deleting}>
+                      Cancelar
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => void handleConfirmDelete()}
+                      disabled={deleting || (deleteMode === 'both' && !deleteConfirmed)}
+                    >
+                      {deleting ? 'Eliminando…' : 'Eliminar'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
 
           <div className="print-header hidden print:block text-sm text-muted-foreground mb-4">
             Confidencial Ley 1581 — Uso interno MD CC — Evento: {RETREAT_EVENT_KEY} — Generado: {new Date().toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
