@@ -36,6 +36,10 @@ export function canRecordRetreatPayments(role: AppRole): boolean {
   return role === "super_admin" || role === "leader";
 }
 
+export function canDeleteRetreatRegistration(role: AppRole): boolean {
+  return role === "super_admin" || role === "leader";
+}
+
 export function canModify(role: AppRole): boolean {
   return hasPermission(role, "canModify");
 }

@@ -13,6 +13,7 @@ import {
   canManageRetreatRegistrations,
   canManageAttendanceSessions,
   canRecordRetreatPayments,
+  canDeleteRetreatRegistration,
   canViewPastoreo,
   canManageWhatsappSettings,
   requirePermission,
@@ -205,6 +206,18 @@ describe("RBAC Guards", () => {
       expect(canRecordRetreatPayments("server")).toBe(false);
     });
   });
+
+  describe("canDeleteRetreatRegistration", () => {
+    it.each(["super_admin", "leader"] as const)("returns true for %s", (role) => {
+      expect(canDeleteRetreatRegistration(role)).toBe(true)
+    })
+
+    // NOTE: AppRole union is only 'super_admin' | 'leader' | 'server'
+    // (src/lib/rbac/types.ts) — the negative list is just `server`.
+    it.each(["server"] as const)("returns false for %s", (role) => {
+      expect(canDeleteRetreatRegistration(role)).toBe(false)
+    })
+  })
 
   describe("requirePermission", () => {
     it("does not throw when permission exists", () => {
