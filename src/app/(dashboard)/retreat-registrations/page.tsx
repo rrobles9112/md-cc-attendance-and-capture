@@ -567,41 +567,40 @@ export default function RetreatRegistrationsPage() {
         </p>
       )}
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-              <TabsList>
-                <TabsTrigger value="todos" onClick={() => setTab('todos')}>
-                  Todos
-                </TabsTrigger>
-                <TabsTrigger value="preinscrito" onClick={() => setTab('preinscrito')}>
-                  Preinscritos
-                </TabsTrigger>
-                <TabsTrigger value="inscrito" onClick={() => setTab('inscrito')}>
-                  Inscritos
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <div className="flex gap-2 w-full sm:w-auto">
-              <div className="relative flex-1 sm:w-64">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por nombre, email o teléfono…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="max-w-sm pl-9"
-                />
-              </div>
-          <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-            <SelectTrigger className="w-[100px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="20">20 / pág</SelectItem>
-              <SelectItem value="50">50 / pág</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="space-y-4">
+                <TabsList>
+                  <TabsTrigger value="todos" onClick={() => setTab('todos')}>
+                    Todos
+                  </TabsTrigger>
+                  <TabsTrigger value="preinscrito" onClick={() => setTab('preinscrito')}>
+                    Preinscritos
+                  </TabsTrigger>
+                  <TabsTrigger value="inscrito" onClick={() => setTab('inscrito')}>
+                    Inscritos
+                  </TabsTrigger>
+                </TabsList>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar por nombre, email o teléfono…"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="max-w-sm pl-9"
+                    />
+                  </div>
+                  <Badge variant="outline">{totalCount} preinscripciones</Badge>
+                  <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+                    <SelectTrigger className="w-[100px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="20">20 / pág</SelectItem>
+                      <SelectItem value="50">50 / pág</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </Tabs>
 
       <div className="no-print flex flex-wrap gap-2">
             <RetreatPreinscriptionCreate
@@ -624,17 +623,17 @@ export default function RetreatRegistrationsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nombre</TableHead>
-              <TableHead className="hidden md:table-cell">Email</TableHead>
-              <TableHead className="hidden sm:table-cell">Teléfono</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead>Pagado</TableHead>
-              <TableHead>Saldo</TableHead>
-              <TableHead>% Pagado</TableHead>
-              <TableHead>Último abono</TableHead>
-              <TableHead className="w-64">Registrar pago</TableHead>
-              <TableHead className="w-40">Transferir</TableHead>
-              {canDelete && <TableHead>Acciones</TableHead>}
+              <TableHead className="sticky left-0 z-10 bg-background">Nombre</TableHead>
+                  <TableHead className="hidden sm:table-cell">Teléfono</TableHead>
+                  <TableHead className="hidden sm:table-cell">Estado</TableHead>
+                  <TableHead className="hidden md:table-cell">Email</TableHead>
+                  <TableHead className="whitespace-nowrap">Pagado</TableHead>
+                  <TableHead className="hidden md:table-cell whitespace-nowrap">Saldo</TableHead>
+                  <TableHead className="hidden lg:table-cell whitespace-nowrap">% Pagado</TableHead>
+                  <TableHead className="hidden lg:table-cell whitespace-nowrap">Último abono</TableHead>
+                  <TableHead className="w-56 md:w-64">Registrar pago</TableHead>
+                  <TableHead className="hidden md:table-cell w-40">Transferir</TableHead>
+                  {canDelete && <TableHead className="whitespace-nowrap">Acciones</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -653,7 +652,7 @@ export default function RetreatRegistrationsPage() {
                 const pct = parsedTotal ? Math.min(100, (sumPaid / parsedTotal) * 100) : 0
                 return (
                   <TableRow key={registration.id}>
-                    <TableCell className="font-medium">
+                    <TableCell className="sticky left-0 z-10 bg-background font-medium">
                       {registration.name}
                       {registration.transferred_at && (
                         <Badge
@@ -665,22 +664,22 @@ export default function RetreatRegistrationsPage() {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">{registration.email}</TableCell>
-                    <TableCell className="hidden sm:table-cell">{registration.phone}</TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell whitespace-nowrap">{registration.phone}</TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <Badge variant={statusBadgeVariant(registration.status)}>
                         {retreatStatusLabel(registration.status)}
                       </Badge>
                     </TableCell>
-                    <TableCell>{formatAmount(sumPaid)}</TableCell>
-                    <TableCell>{remaining === null ? '—' : formatAmount(remaining)}</TableCell>
-                    <TableCell>{abonos.percent === null ? '—' : `${abonos.percent.toFixed(0)}%`}</TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell max-w-[200px] truncate">{registration.email}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatAmount(sumPaid)}</TableCell>
+                    <TableCell className="hidden md:table-cell whitespace-nowrap">{remaining === null ? '—' : formatAmount(remaining)}</TableCell>
+                    <TableCell className="hidden lg:table-cell whitespace-nowrap">{abonos.percent === null ? '—' : `${abonos.percent.toFixed(0)}%`}</TableCell>
+                    <TableCell className="hidden lg:table-cell whitespace-nowrap">
                       {abonos.last
                         ? new Date(abonos.last).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
                         : '—'}
                     </TableCell>
-                        <TableCell className="w-64">
+                        <TableCell className="w-56 md:w-64">
                           {registration.status === 'inscrito' ? (
                             <Badge variant="secondary" className="bg-emerald-50 text-emerald-800">
                               Pagado ✓
@@ -690,8 +689,8 @@ export default function RetreatRegistrationsPage() {
                           ) : !canRecordPayments ? (
                             <span className="text-xs text-muted-foreground">—</span>
                           ) : (
-                            <div className="flex w-64 flex-col gap-1.5">
-                              <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex flex-col gap-2">
+                              <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-2">
                                 <Input
                                   type="number"
                                   min="0.01"
@@ -705,11 +704,13 @@ export default function RetreatRegistrationsPage() {
                                   }
                                   placeholder="Monto"
                                   aria-label={`Monto de cuota para ${registration.name}`}
+                                  className="w-full md:min-w-0 md:flex-1"
                                 />
                                 <Button
                                   size="sm"
                                   disabled={savingPaymentId === registration.id}
                                   onClick={() => void handleRecordPayment(registration.id)}
+                                  className="w-full md:w-auto"
                                 >
                                   Registrar pago
                                 </Button>
@@ -745,7 +746,7 @@ export default function RetreatRegistrationsPage() {
                             </div>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden md:table-cell w-40">
                           {registration.transferred_at ? (
                             <Badge variant="secondary" className="bg-emerald-50 text-emerald-800" title={new Date(registration.transferred_at).toLocaleDateString('es-CO')}>
                               Transferido ✓
@@ -783,7 +784,7 @@ export default function RetreatRegistrationsPage() {
                           )}
                         </TableCell>
                         {canDelete && (
-                          <TableCell>
+                          <TableCell className="whitespace-nowrap">
                             <Button
                               variant="destructive"
                               size="sm"
