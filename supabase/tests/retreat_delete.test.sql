@@ -137,8 +137,8 @@ BEGIN
     'request.jwt.claims',
     json_build_object(
       'role', 'authenticated',
-      'sub', v_leader_id::text,
-      'app_metadata', json_build_object('role', 'leader')
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
     )::text,
     true
   );
@@ -160,7 +160,7 @@ BEGIN
   RESET ROLE;
 
   -- =========================================================================
-  -- S1 — leader deletes in payments → registration order
+  -- S1 — leader DELETE denied (super_admin-only mutation)
   -- =========================================================================
   INSERT INTO public.retreat_registrations (
     event_key, name, phone, email, status,
@@ -184,32 +184,30 @@ BEGIN
   );
   BEGIN
     DELETE FROM public.retreat_payments WHERE registration_id = v_s1;
-    GET DIAGNOSTICS v_n = ROW_COUNT;
-    IF v_n <> 2 THEN
-      RAISE EXCEPTION 'FAIL: S1 leader should delete 2 payments, deleted %', v_n;
+    IF FOUND THEN
+      RAISE EXCEPTION 'FAIL: S1 leader DELETE on retreat_payments should affect 0 rows';
     END IF;
     DELETE FROM public.retreat_registrations WHERE id = v_s1;
-    GET DIAGNOSTICS v_n = ROW_COUNT;
-    IF v_n <> 1 THEN
-      RAISE EXCEPTION 'FAIL: S1 leader should delete 1 registration, deleted %', v_n;
+    IF FOUND THEN
+      RAISE EXCEPTION 'FAIL: S1 leader DELETE on retreat_registrations should affect 0 rows';
     END IF;
-    RAISE NOTICE 'PASS: S1 leader deletes payments then registration';
+    RAISE NOTICE 'PASS: S1 leader DELETE denied on both tables (0 rows)';
   EXCEPTION
     WHEN insufficient_privilege THEN
-      RAISE EXCEPTION 'FAIL: S1 leader DELETE denied (no GRANT/policy — pre-021 gap)';
+      RAISE NOTICE 'PASS: S1 leader DELETE denied (privilege)';
     WHEN OTHERS THEN
       IF SQLERRM LIKE 'FAIL:%' THEN
         RAISE;
       END IF;
-      RAISE;
+      RAISE NOTICE 'PASS: S1 leader DELETE denied (%)', SQLERRM;
   END;
   RESET ROLE;
 
-  IF EXISTS (SELECT 1 FROM public.retreat_payments WHERE registration_id = v_s1) THEN
-    RAISE EXCEPTION 'FAIL: S1 payments should be gone';
+  IF NOT EXISTS (SELECT 1 FROM public.retreat_payments WHERE registration_id = v_s1) THEN
+    RAISE EXCEPTION 'FAIL: S1 payments should remain after leader deny';
   END IF;
-  IF EXISTS (SELECT 1 FROM public.retreat_registrations WHERE id = v_s1) THEN
-    RAISE EXCEPTION 'FAIL: S1 registration should be gone';
+  IF NOT EXISTS (SELECT 1 FROM public.retreat_registrations WHERE id = v_s1) THEN
+    RAISE EXCEPTION 'FAIL: S1 registration should remain after leader deny';
   END IF;
 
   -- =========================================================================
@@ -288,8 +286,8 @@ BEGIN
     'request.jwt.claims',
     json_build_object(
       'role', 'authenticated',
-      'sub', v_leader_id::text,
-      'app_metadata', json_build_object('role', 'leader')
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
     )::text,
     true
   );
@@ -297,12 +295,12 @@ BEGIN
     DELETE FROM public.retreat_payments WHERE registration_id = v_s6;
     GET DIAGNOSTICS v_n = ROW_COUNT;
     IF v_n <> 2 THEN
-      RAISE EXCEPTION 'FAIL: S6 leader should delete 2 payments, deleted %', v_n;
+      RAISE EXCEPTION 'FAIL: S6 super_admin should delete 2 payments, deleted %', v_n;
     END IF;
-    RAISE NOTICE 'PASS: S6 leader deleted only payments (option b)';
+    RAISE NOTICE 'PASS: S6 super_admin deleted only payments (option b)';
   EXCEPTION
     WHEN insufficient_privilege THEN
-      RAISE EXCEPTION 'FAIL: S6 leader DELETE denied (no GRANT/policy — pre-021 gap)';
+      RAISE EXCEPTION 'FAIL: S6 super_admin DELETE denied';
     WHEN OTHERS THEN
       IF SQLERRM LIKE 'FAIL:%' THEN
         RAISE;
@@ -345,8 +343,8 @@ BEGIN
     'request.jwt.claims',
     json_build_object(
       'role', 'authenticated',
-      'sub', v_leader_id::text,
-      'app_metadata', json_build_object('role', 'leader')
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
     )::text,
     true
   );
@@ -358,7 +356,7 @@ BEGIN
     END IF;
   EXCEPTION
     WHEN insufficient_privilege THEN
-      RAISE EXCEPTION 'FAIL: S7 leader DELETE denied (no GRANT/policy — pre-021 gap)';
+      RAISE EXCEPTION 'FAIL: S7 super_admin DELETE denied';
     WHEN OTHERS THEN
       IF SQLERRM LIKE 'FAIL:%' THEN
         RAISE;
@@ -397,8 +395,8 @@ BEGIN
     'request.jwt.claims',
     json_build_object(
       'role', 'authenticated',
-      'sub', v_leader_id::text,
-      'app_metadata', json_build_object('role', 'leader')
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
     )::text,
     true
   );
@@ -406,16 +404,16 @@ BEGIN
     DELETE FROM public.retreat_payments WHERE registration_id = v_s8;
     GET DIAGNOSTICS v_n = ROW_COUNT;
     IF v_n <> 1 THEN
-      RAISE EXCEPTION 'FAIL: S8 leader should delete 1 payment, deleted %', v_n;
+      RAISE EXCEPTION 'FAIL: S8 super_admin should delete 1 payment, deleted %', v_n;
     END IF;
     DELETE FROM public.retreat_registrations WHERE id = v_s8;
     GET DIAGNOSTICS v_n = ROW_COUNT;
     IF v_n <> 1 THEN
-      RAISE EXCEPTION 'FAIL: S8 leader should delete 1 registration, deleted %', v_n;
+      RAISE EXCEPTION 'FAIL: S8 super_admin should delete 1 registration, deleted %', v_n;
     END IF;
   EXCEPTION
     WHEN insufficient_privilege THEN
-      RAISE EXCEPTION 'FAIL: S8 leader DELETE denied (no GRANT/policy — pre-021 gap)';
+      RAISE EXCEPTION 'FAIL: S8 super_admin DELETE denied';
     WHEN OTHERS THEN
       IF SQLERRM LIKE 'FAIL:%' THEN
         RAISE;

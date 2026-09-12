@@ -10,7 +10,7 @@ import {
 import { useRealtime } from "@/hooks/useRealtime";
 import { useCacheHydration } from "@/hooks/useCacheHydration";
 import { useRole } from "@/hooks/useRole";
-import { canDelete, canManageRetreatRegistrations } from "@/lib/rbac/guards";
+import { canDelete, canModify, canMutateRetreatPreinscriptions } from "@/lib/rbac/guards";
 import { softDelete } from "@/lib/delete/soft-delete";
 import { enqueue } from "@/lib/sync/queue";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Trash2, Eye } from "lucide-react";
+import { Pencil, Trash2, Eye } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -40,8 +40,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getBirthdaysOfMonth, getNewMembers } from "@/lib/members/highlights";
+import { buildMemberUpdate } from "@/lib/members/update";
 import { CaptureForm, type CaptureFormInitialValues } from "@/components/forms/CaptureForm";
 import { submitRetreatPreinscriptionForMember } from "@/lib/retreat/submit-adapter";
 import { RETREAT_EVENT_KEY } from "@/lib/retreat/constants";
@@ -74,6 +76,14 @@ export default function MembersPage() {
     typeof navigator !== "undefined" ? navigator.onLine : true,
   );
   const [hasSession, setHasSession] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editBirthday, setEditBirthday] = useState("");
+  const [editLegalRep, setEditLegalRep] = useState("");
+  const [editHasWhatsapp, setEditHasWhatsapp] = useState(false);
 
   const loadMembers = useCallback(async () => {
     const allMembers = await db.members
@@ -148,6 +158,13 @@ export default function MembersPage() {
 
   async function handleViewMember(member: Member) {
     setSelectedMember(member);
+    setEditing(false);
+    setEditName(member.name);
+    setEditPhone(member.phone);
+    setEditEmail(member.email);
+    setEditBirthday(member.birthday ?? "");
+    setEditLegalRep(member.legal_rep_name ?? "");
+    setEditHasWhatsapp(member.has_whatsapp);
     const sm = await db.social_media
       .where("member_id")
       .equals(member.id)
@@ -178,6 +195,50 @@ export default function MembersPage() {
     }
   }
 
+  async function handleSaveMemberEdit() {
+    if (!role || !canModify(role) || !selectedMember) return;
+    const result = buildMemberUpdate({
+      name: editName,
+      phone: editPhone,
+      email: editEmail,
+      birthday: editBirthday,
+      legalRepName: editLegalRep,
+      hasWhatsapp: editHasWhatsapp,
+    });
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await db.members.update(selectedMember.id, {
+        name: result.payload.name,
+        name_normalized: result.payload.name_normalized,
+        phone: result.payload.phone,
+        email: result.payload.email,
+        birthday: result.payload.birthday ?? undefined,
+        is_minor: result.payload.is_minor,
+        legal_rep_name: result.payload.legal_rep_name ?? undefined,
+        has_whatsapp: result.payload.has_whatsapp,
+        updated_at: result.payload.updated_at,
+      });
+      await enqueue("members", selectedMember.id, "update", result.payload);
+      toast.success("Miembro actualizado");
+      setSelectedMember({
+        ...selectedMember,
+        ...result.payload,
+        birthday: result.payload.birthday ?? undefined,
+        legal_rep_name: result.payload.legal_rep_name ?? undefined,
+      });
+      setEditing(false);
+      await loadMembers();
+    } catch {
+      toast.error("Error al actualizar el miembro");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   const filteredMembers = members.filter(
     (m) =>
       m.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -193,7 +254,7 @@ export default function MembersPage() {
 
   const canShowPreinscribe =
     role !== null &&
-    canManageRetreatRegistrations(role) &&
+    canMutateRetreatPreinscriptions(role) &&
     selectedMember !== null &&
     selectedMember.deleted_at === null &&
     isOnline &&
@@ -307,6 +368,18 @@ export default function MembersPage() {
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
+                      {role && canModify(role) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Editar a ${member.name}`}
+                          onClick={() => {
+                            void handleViewMember(member).then(() => setEditing(true));
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
                       {role && canDelete(role) && (
                         <Button
                           variant="ghost"
@@ -391,7 +464,12 @@ export default function MembersPage() {
 
       <Dialog
         open={!!selectedMember}
-        onOpenChange={(open) => !open && setSelectedMember(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedMember(null)
+            setEditing(false)
+          }
+        }}
       >
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -407,6 +485,69 @@ export default function MembersPage() {
           </DialogHeader>
           {selectedMember && (
             <div className="space-y-4">
+              {editing && role && canModify(role) ? (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="member-edit-name">Nombre</Label>
+                    <Input
+                      id="member-edit-name"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="member-edit-phone">Teléfono</Label>
+                    <Input
+                      id="member-edit-phone"
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="member-edit-email">Email</Label>
+                    <Input
+                      id="member-edit-email"
+                      type="email"
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="member-edit-birthday">Fecha de nacimiento</Label>
+                    <Input
+                      id="member-edit-birthday"
+                      type="date"
+                      value={editBirthday}
+                      onChange={(e) => setEditBirthday(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="member-edit-legal-rep">Representante legal</Label>
+                    <Input
+                      id="member-edit-legal-rep"
+                      value={editLegalRep}
+                      onChange={(e) => setEditLegalRep(e.target.value)}
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={editHasWhatsapp}
+                      onChange={(e) => setEditHasWhatsapp(e.target.checked)}
+                    />
+                    Tiene WhatsApp
+                  </label>
+                  <div className="flex gap-2">
+                    <Button onClick={() => void handleSaveMemberEdit()} disabled={savingEdit}>
+                      {savingEdit ? "Guardando..." : "Guardar"}
+                    </Button>
+                    <Button variant="outline" onClick={() => setEditing(false)} disabled={savingEdit}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+              <>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-muted-foreground">Teléfono:</span>
@@ -499,7 +640,7 @@ export default function MembersPage() {
                 </Button>
               ) : (
                 role !== null &&
-                canManageRetreatRegistrations(role) &&
+                canMutateRetreatPreinscriptions(role) &&
                 selectedMember.deleted_at === null && (
                   <Button
                     disabled
@@ -508,6 +649,13 @@ export default function MembersPage() {
                     Preinscribir al retiro
                   </Button>
                 )
+              )}
+              {role && canModify(role) && !editing && (
+                <Button variant="outline" onClick={() => setEditing(true)}>
+                  <Pencil className="mr-2 h-4 w-4" /> Editar
+                </Button>
+              )}
+              </>
               )}
             </div>
           )}

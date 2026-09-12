@@ -87,6 +87,7 @@ describe('staff retreat page source', () => {
   it('guards with canManageRetreatRegistrations and does not use Dexie or AdminPage', () => {
     const source = readFileSync(staffPagePath, 'utf8')
     expect(source).toContain('canManageRetreatRegistrations')
+    expect(source).toContain('canMutateRetreatPreinscriptions')
     expect(source).toContain('No tiene permisos para acceder a esta sección')
     expect(source).toContain('getRetreatTotalCost')
     expect(source).toContain('retreat_payments')

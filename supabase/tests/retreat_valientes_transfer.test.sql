@@ -72,7 +72,7 @@ BEGIN
 
   -- linked member registration via leader RPC (member_id branch)
   SET LOCAL ROLE authenticated;
-  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   -- payments for inscrito to reach 400k
   INSERT INTO public.retreat_payments (registration_id,amount,recorded_by) VALUES (v_r_inscrito,200000,v_leader), (v_r_inscrito,200000,v_leader);
   RESET ROLE;
@@ -82,7 +82,7 @@ BEGIN
   PERFORM pg_sleep(0.1);
   -- status trigger already updated
   SET LOCAL ROLE authenticated;
-  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   -- create linked registration (needs member_id)
   v_r_linked := public.register_retreat_preinscription_for_member(p_member_id:=v_member_linked, p_general_consent:=true, p_sensitive_consent:=false, p_has_whatsapp:=true, p_whatsapp_number:='3008887777');
   INSERT INTO public.retreat_payments (registration_id,amount,recorded_by) VALUES (v_r_linked,400000,v_leader);
@@ -91,10 +91,10 @@ BEGIN
   -- CASE 1: leader inscrito member_id IS NULL -> succeeds
   SELECT count(*) INTO v_cnt_before FROM public.members;
   SET LOCAL ROLE authenticated;
-  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   v_new_member := public.transfer_retreat_to_valientes(v_r_inscrito);
   RESET ROLE;
-  IF v_new_member IS NULL THEN RAISE EXCEPTION 'FAIL: CASE1 leader inscrito null should return uuid'; END IF;
+  IF v_new_member IS NULL THEN RAISE EXCEPTION 'FAIL: CASE1 super_admin inscrito null should return uuid'; END IF;
   SELECT pastoral_group INTO v_pastoral FROM public.members WHERE id=v_new_member;
   IF v_pastoral <>'Valientes' THEN RAISE EXCEPTION 'FAIL: CASE1 pastoral_group Valientes got %', v_pastoral; END IF;
   SELECT email INTO v_email FROM public.members WHERE id=v_new_member;
@@ -107,7 +107,7 @@ BEGIN
   IF v_transferred_at IS NULL THEN RAISE EXCEPTION 'FAIL: CASE1 transferred_at IS NULL'; END IF;
   SELECT count(*) INTO v_cnt_after FROM public.members;
   IF v_cnt_after <> v_cnt_before+1 THEN RAISE EXCEPTION 'FAIL: CASE1 should insert 1 member'; END IF;
-  RAISE NOTICE 'PASS: CASE1 leader inscrito null -> Valientes %', v_new_member;
+  RAISE NOTICE 'PASS: CASE1 super_admin inscrito null -> Valientes %', v_new_member;
 
   -- ensure audit_log for members and retreat_registrations
   IF NOT EXISTS (SELECT 1 FROM public.audit_log WHERE table_name='members' AND record_id=v_new_member AND new_value->>'pastoral_group'='Valientes') THEN
@@ -120,13 +120,13 @@ BEGIN
 
   -- CASE 2: same registration second call -> already_transferred 23505
   SET LOCAL ROLE authenticated;
-  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   BEGIN PERFORM public.transfer_retreat_to_valientes(v_r_inscrito); RAISE EXCEPTION 'FAIL: CASE2 second call should 23505'; EXCEPTION WHEN OTHERS THEN IF SQLSTATE<>'23505' OR SQLERRM NOT LIKE '%already_transferred%' THEN RAISE EXCEPTION 'FAIL: CASE2 expected 23505 already_transferred got % %', SQLSTATE, SQLERRM; END IF; RAISE NOTICE 'PASS: CASE2 already_transferred %', SQLERRM; END;
   RESET ROLE;
 
   -- CASE 3: preinscrito -> not_inscrito 23514
   SET LOCAL ROLE authenticated;
-  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   BEGIN PERFORM public.transfer_retreat_to_valientes(v_r_pre); RAISE EXCEPTION 'FAIL: CASE3 preinscrito should 23514'; EXCEPTION WHEN OTHERS THEN IF SQLSTATE<>'23514' OR SQLERRM NOT LIKE '%not_inscrito%' THEN RAISE EXCEPTION 'FAIL: CASE3 expected 23514 not_inscrito got % %', SQLSTATE, SQLERRM; END IF; RAISE NOTICE 'PASS: CASE3 preinscrito not_inscrito %', SQLERRM; END;
   RESET ROLE;
 
@@ -137,7 +137,7 @@ BEGIN
   UPDATE public.app_settings SET value='', updated_by=v_super WHERE key='retreat.youth.total_cost';
   RESET ROLE;
   SET LOCAL ROLE authenticated;
-  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   BEGIN PERFORM public.transfer_retreat_to_valientes(v_r_pre); RAISE EXCEPTION 'FAIL: CASE4 preinscrito should 23514 even with empty total'; EXCEPTION WHEN OTHERS THEN IF SQLSTATE<>'23514' OR SQLERRM NOT LIKE '%not_inscrito%' OR SQLERRM LIKE '%missing_total%' THEN RAISE EXCEPTION 'FAIL: CASE4 expected not_inscrito (no missing_total) got % %', SQLSTATE, SQLERRM; END IF; RAISE NOTICE 'PASS: CASE4 status-only gate with empty total %', SQLERRM; END;
   RESET ROLE;
   -- restore total
@@ -154,11 +154,11 @@ BEGIN
     -- need to make it inscrito for transfer to be attempted otherwise not_inscrito will trigger first
     RESET ROLE;
     SET LOCAL ROLE authenticated;
-    PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+    PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
     INSERT INTO public.retreat_payments (registration_id,amount,recorded_by) VALUES (v_dup_reg,400000,v_leader);
     RESET ROLE;
     SET LOCAL ROLE authenticated;
-    PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+    PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
     BEGIN PERFORM public.transfer_retreat_to_valientes(v_dup_reg); RAISE EXCEPTION 'FAIL: CASE5 duplicate should 23505'; EXCEPTION WHEN OTHERS THEN IF SQLSTATE<>'23505' OR SQLERRM NOT LIKE '%already_member%' THEN RAISE EXCEPTION 'FAIL: CASE5 expected already_member got % %', SQLSTATE, SQLERRM; END IF; RAISE NOTICE 'PASS: CASE5 already_member %', SQLERRM; END;
     RESET ROLE;
   END;
@@ -174,7 +174,7 @@ BEGIN
   v_r_dup2 := public.register_retreat_preinscription(p_name:='Dup Two Reg', p_phone:='3007770010', p_email:='dup2-valientes@example.com', p_general_consent:=true);
   RESET ROLE;
   SET LOCAL ROLE authenticated;
-  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   BEGIN PERFORM public.transfer_retreat_to_valientes(v_r_dup2); RAISE EXCEPTION 'FAIL: CASE5b duplicate should 23505'; EXCEPTION WHEN OTHERS THEN IF SQLSTATE<>'23505' OR SQLERRM NOT LIKE '%already_member%' THEN RAISE EXCEPTION 'FAIL: CASE5b expected already_member got % %', SQLSTATE, SQLERRM; END IF; RAISE NOTICE 'PASS: CASE5b duplicate before status gate %', SQLERRM; END;
   RESET ROLE;
 
@@ -188,7 +188,7 @@ BEGIN
   UPDATE public.retreat_registrations SET status='inscrito' WHERE id=v_r_seed; -- owner seed-style status, no payments
   SELECT count(*) INTO v_cnt_before FROM public.members;
   SET LOCAL ROLE authenticated;
-  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   v_seed_member := public.transfer_retreat_to_valientes(v_r_seed);
   RESET ROLE;
   IF v_seed_member IS NULL THEN RAISE EXCEPTION 'FAIL: CASE5c transfer should return member uuid'; END IF;
@@ -206,7 +206,7 @@ BEGIN
   -- CASE 6: member_id IS NOT NULL -> UPDATE pastoral_group no extra row
   SELECT count(*) INTO v_cnt_before FROM public.members;
   SET LOCAL ROLE authenticated;
-  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   v_new_member := public.transfer_retreat_to_valientes(v_r_linked);
   RESET ROLE;
   IF v_new_member <> v_member_linked THEN RAISE EXCEPTION 'FAIL: CASE6 should return linked member id % got %', v_member_linked, v_new_member; END IF;
@@ -222,7 +222,7 @@ BEGIN
 
   -- CASE 7: linked member already Valientes -> already_transferred
   SET LOCAL ROLE authenticated;
-  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   BEGIN PERFORM public.transfer_retreat_to_valientes(v_r_linked); RAISE EXCEPTION 'FAIL: CASE7 already Valientes should 23505'; EXCEPTION WHEN OTHERS THEN IF SQLSTATE<>'23505' OR SQLERRM NOT LIKE '%already_transferred%' THEN RAISE EXCEPTION 'FAIL: CASE7 expected already_transferred got % %', SQLSTATE, SQLERRM; END IF; RAISE NOTICE 'PASS: CASE7 already Valientes -> already_transferred %', SQLERRM; END;
   RESET ROLE;
 
@@ -236,6 +236,12 @@ BEGIN
   SET LOCAL ROLE authenticated;
   PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_server::text,'app_metadata',json_build_object('role','server'))::text,true);
   BEGIN PERFORM public.transfer_retreat_to_valientes(v_r_pre); RAISE EXCEPTION 'FAIL: CASE9 server should 42501'; EXCEPTION WHEN OTHERS THEN IF SQLSTATE<>'42501' THEN RAISE EXCEPTION 'FAIL: CASE9 expected 42501 got % %', SQLSTATE, SQLERRM; END IF; RAISE NOTICE 'PASS: CASE9 server 42501 %', SQLERRM; END;
+  RESET ROLE;
+
+  -- CASE 9b: leader JWT -> 42501 (mutations are super_admin only)
+  SET LOCAL ROLE authenticated;
+  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  BEGIN PERFORM public.transfer_retreat_to_valientes(v_r_pre); RAISE EXCEPTION 'FAIL: CASE9b leader should 42501'; EXCEPTION WHEN OTHERS THEN IF SQLSTATE<>'42501' THEN RAISE EXCEPTION 'FAIL: CASE9b expected 42501 got % %', SQLSTATE, SQLERRM; END IF; RAISE NOTICE 'PASS: CASE9b leader 42501 %', SQLERRM; END;
   RESET ROLE;
 
   -- CASE 10 indexes exist already checked; also check view exists and security_invoker

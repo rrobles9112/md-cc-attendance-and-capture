@@ -684,8 +684,8 @@ BEGIN
     'request.jwt.claims',
     json_build_object(
       'role', 'authenticated',
-      'sub', v_leader_id::text,
-      'app_metadata', json_build_object('role', 'leader')
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
     )::text,
     true
   );
@@ -709,8 +709,8 @@ BEGIN
     'request.jwt.claims',
     json_build_object(
       'role', 'authenticated',
-      'sub', v_leader_id::text,
-      'app_metadata', json_build_object('role', 'leader')
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
     )::text,
     true
   );
@@ -733,8 +733,8 @@ BEGIN
     'request.jwt.claims',
     json_build_object(
       'role', 'authenticated',
-      'sub', v_leader_id::text,
-      'app_metadata', json_build_object('role', 'leader')
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
     )::text,
     true
   );
@@ -757,8 +757,8 @@ BEGIN
     'request.jwt.claims',
     json_build_object(
       'role', 'authenticated',
-      'sub', v_leader_id::text,
-      'app_metadata', json_build_object('role', 'leader')
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
     )::text,
     true
   );
@@ -781,8 +781,8 @@ BEGIN
     'request.jwt.claims',
     json_build_object(
       'role', 'authenticated',
-      'sub', v_leader_id::text,
-      'app_metadata', json_build_object('role', 'leader')
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
     )::text,
     true
   );
@@ -828,8 +828,8 @@ BEGIN
     'request.jwt.claims',
     json_build_object(
       'role', 'authenticated',
-      'sub', v_leader_id::text,
-      'app_metadata', json_build_object('role', 'leader')
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
     )::text,
     true
   );
@@ -951,8 +951,8 @@ BEGIN
     'request.jwt.claims',
     json_build_object(
       'role', 'authenticated',
-      'sub', v_leader_id::text,
-      'app_metadata', json_build_object('role', 'leader')
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
     )::text,
     true
   );
@@ -971,8 +971,8 @@ BEGIN
     'request.jwt.claims',
     json_build_object(
       'role', 'authenticated',
-      'sub', v_leader_id::text,
-      'app_metadata', json_build_object('role', 'leader')
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
     )::text,
     true
   );
@@ -996,8 +996,8 @@ BEGIN
     'request.jwt.claims',
     json_build_object(
       'role', 'authenticated',
-      'sub', v_leader_id::text,
-      'app_metadata', json_build_object('role', 'leader')
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
     )::text,
     true
   );
@@ -1048,8 +1048,8 @@ BEGIN
     'request.jwt.claims',
     json_build_object(
       'role', 'authenticated',
-      'sub', v_leader_id::text,
-      'app_metadata', json_build_object('role', 'leader')
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
     )::text,
     true
   );
@@ -1079,7 +1079,7 @@ BEGIN
   END IF;
   SELECT r.status INTO v_status FROM public.retreat_registrations r WHERE r.id = v_status_c;
   IF v_status IS DISTINCT FROM 'pagos_parciales' THEN
-    RAISE EXCEPTION 'FAIL: leader 40 + super_admin 20 should be pagos_parciales, got %', v_status;
+    RAISE EXCEPTION 'FAIL: super_admin 40 + super_admin 20 should be pagos_parciales, got %', v_status;
   END IF;
   IF (
     SELECT COALESCE(SUM(p.amount), 0)
@@ -1096,8 +1096,8 @@ BEGIN
     'request.jwt.claims',
     json_build_object(
       'role', 'authenticated',
-      'sub', v_leader_id::text,
-      'app_metadata', json_build_object('role', 'leader')
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
     )::text,
     true
   );
@@ -1116,8 +1116,8 @@ BEGIN
     'request.jwt.claims',
     json_build_object(
       'role', 'authenticated',
-      'sub', v_leader_id::text,
-      'app_metadata', json_build_object('role', 'leader')
+      'sub', v_super_admin_id::text,
+      'app_metadata', json_build_object('role', 'super_admin')
     )::text,
     true
   );
@@ -1177,6 +1177,38 @@ BEGIN
     RAISE EXCEPTION 'FAIL: server payment row must not exist';
   END IF;
 
+  SET LOCAL ROLE authenticated;
+  PERFORM set_config(
+    'request.jwt.claims',
+    json_build_object(
+      'role', 'authenticated',
+      'sub', v_leader_id::text,
+      'app_metadata', json_build_object('role', 'leader')
+    )::text,
+    true
+  );
+  BEGIN
+    INSERT INTO public.retreat_payments (registration_id, amount, recorded_by)
+    VALUES (v_status_b, 5, v_leader_id);
+    RAISE EXCEPTION 'FAIL: leader should not INSERT retreat_payments';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'PASS: leader CANNOT INSERT retreat_payments';
+    WHEN OTHERS THEN
+      IF SQLERRM LIKE 'FAIL:%' THEN
+        RAISE;
+      END IF;
+      RAISE NOTICE 'PASS: leader CANNOT INSERT retreat_payments (%)', SQLERRM;
+  END;
+  RESET ROLE;
+
+  SELECT count(*) INTO v_pay_count
+  FROM public.retreat_payments
+  WHERE registration_id = v_status_b AND amount = 5;
+  IF v_pay_count <> 0 THEN
+    RAISE EXCEPTION 'FAIL: leader payment row must not exist';
+  END IF;
+
   RAISE NOTICE 'All retreat RLS/RPC/status tests passed';
 END $$;
 
@@ -1196,36 +1228,37 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='retreat_registrations' AND column_name='member_id') THEN RAISE EXCEPTION 'FAIL: member_id missing 013' USING ERRCODE='42703'; END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.relname='retreat_registrations_member_id_idx' AND n.nspname='public') THEN RAISE EXCEPTION 'FAIL: idx missing'; END IF;
   INSERT INTO public.members (id,name,name_normalized,phone,email,birthday,is_minor,has_whatsapp,consent_recorded,sensitive_consent_recorded,duplicate_flag,created_by,created_at,updated_at,deleted_at) VALUES (v_a,'Ana A','ana a','3009000001','ana-a@example.com','2000-01-15',false,false,true,false,false,v_leader,now(),now(),NULL),(v_b,'Bob B','bob b','3009000002','bob-b@example.com','2000-01-15',false,false,true,false,false,v_leader,now(),now(),NULL),(v_minor,'Minor','minor','3009000003','minor@example.com','2014-06-15',true,false,true,false,false,v_leader,now(),now(),NULL),(v_dup_e,'Dup E','dup e','3009000004','ana-a@example.com','2000-01-15',false,false,true,false,false,v_leader,now(),now(),NULL),(v_dup_p,'Dup P','dup p','300-900-0001','dup-p@example.com','2000-01-15',false,false,true,false,false,v_leader,now(),now(),NULL),(v_del,'Del','del','3009000006','del@example.com','2000-01-15',false,false,true,false,false,v_leader,now(),now(),now()),(v_sens,'Sens','sens','3009000007','sens@example.com','2000-01-15',false,false,true,false,false,v_leader,now(),now(),NULL) ON CONFLICT (id) DO NOTHING;
-  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   v_reg:=public.register_retreat_preinscription_for_member(p_member_id:=v_a,p_general_consent:=true);
   SELECT status,event_key,member_id,general_consent_accepted_at,general_consent_policy_version INTO v_status,v_event_key,v_first,v_sens_at,v_policy FROM public.retreat_registrations WHERE id=v_reg;
-  IF v_status<>'preinscrito' OR v_event_key<>'retiro-juvenil-octubre-2026' OR v_first<>v_a OR v_sens_at IS NULL OR v_policy<>'pdtp-v1.0-2026-07-17' THEN RAISE EXCEPTION 'FAIL: leader mismatch'; END IF; v_first:=v_reg; RAISE NOTICE 'PASS: leader member-linked'; RESET ROLE;
-  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  IF v_status<>'preinscrito' OR v_event_key<>'retiro-juvenil-octubre-2026' OR v_first<>v_a OR v_sens_at IS NULL OR v_policy<>'pdtp-v1.0-2026-07-17' THEN RAISE EXCEPTION 'FAIL: super_admin mismatch'; END IF; v_first:=v_reg; RAISE NOTICE 'PASS: super_admin member-linked'; RESET ROLE;
+  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   BEGIN PERFORM public.register_retreat_preinscription_for_member(p_member_id:=v_b,p_general_consent:=false); RAISE EXCEPTION 'FAIL: consent not rejected'; EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; IF SQLSTATE!='23514' THEN RAISE EXCEPTION 'FAIL: consent 23514 % %',SQLSTATE,SQLERRM; END IF; RAISE NOTICE 'PASS: missing consent %',SQLERRM; END; RESET ROLE;
-  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   BEGIN PERFORM public.register_retreat_preinscription_for_member(p_member_id:=v_minor,p_general_consent:=true,p_legal_rep_name:=NULL); RAISE EXCEPTION 'FAIL: minor no rep'; EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; IF SQLERRM NOT LIKE '%legal representative%' THEN RAISE EXCEPTION 'FAIL: legal rep % %',SQLSTATE,SQLERRM; END IF; RAISE NOTICE 'PASS: minor no rep %',SQLERRM; END;
   BEGIN v_reg:=public.register_retreat_preinscription_for_member(p_member_id:=v_minor,p_general_consent:=true,p_legal_rep_name:='Tutor'); SELECT is_minor,legal_rep_name INTO v_is_minor,v_legal FROM public.retreat_registrations WHERE id=v_reg; IF NOT v_is_minor OR v_legal<>'Tutor' THEN RAISE EXCEPTION 'FAIL: minor rep'; END IF; RAISE NOTICE 'PASS: minor with rep'; EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; RAISE EXCEPTION 'FAIL: minor rep % %',SQLSTATE,SQLERRM; END; RESET ROLE;
-  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   BEGIN PERFORM public.register_retreat_preinscription_for_member(p_member_id:=v_a,p_general_consent:=true); RAISE EXCEPTION 'FAIL: dup member'; EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; IF SQLSTATE!='23505' THEN RAISE EXCEPTION 'FAIL: dup member 23505 % %',SQLSTATE,SQLERRM; END IF; SELECT count(*) INTO v_cnt FROM public.retreat_registrations WHERE member_id=v_a; IF v_cnt<>1 THEN RAISE EXCEPTION 'FAIL: dup count %',v_cnt; END IF; RAISE NOTICE 'PASS: dup member %',SQLERRM; END; RESET ROLE;
-  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   BEGIN PERFORM public.register_retreat_preinscription_for_member(p_member_id:=v_dup_e,p_general_consent:=true); RAISE EXCEPTION 'FAIL: dup email'; EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; IF SQLSTATE!='23505' THEN RAISE EXCEPTION 'FAIL: dup email % %',SQLSTATE,SQLERRM; END IF; RAISE NOTICE 'PASS: dup email %',SQLERRM; END; RESET ROLE;
-  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   BEGIN PERFORM public.register_retreat_preinscription_for_member(p_member_id:=v_dup_p,p_general_consent:=true); RAISE EXCEPTION 'FAIL: dup phone'; EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; IF SQLSTATE!='23505' THEN RAISE EXCEPTION 'FAIL: dup phone % %',SQLSTATE,SQLERRM; END IF; RAISE NOTICE 'PASS: dup phone %',SQLERRM; END; RESET ROLE;
-  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   BEGIN PERFORM public.register_retreat_preinscription_for_member(p_member_id:=v_del,p_general_consent:=true); RAISE EXCEPTION 'FAIL: deleted'; EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; IF SQLERRM NOT LIKE '%member not found%' THEN RAISE EXCEPTION 'FAIL: deleted % %',SQLSTATE,SQLERRM; END IF; RAISE NOTICE 'PASS: deleted %',SQLERRM; END; RESET ROLE;
-  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   BEGIN v_reg:=public.register_retreat_preinscription_for_member(p_member_id:=v_sens,p_general_consent:=true,p_sensitive_consent:=false,p_denomination:='Catolica',p_community_name:='MD CC'); SELECT denomination,community_name,sensitive_consent_accepted_at INTO v_denom,v_comm,v_sens_at FROM public.retreat_registrations WHERE id=v_reg; IF v_denom IS NOT NULL OR v_comm IS NOT NULL OR v_sens_at IS NOT NULL THEN RAISE EXCEPTION 'FAIL: sens false'; END IF; RAISE NOTICE 'PASS: sens false'; EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; RAISE EXCEPTION 'FAIL: sens false % %',SQLSTATE,SQLERRM; END; RESET ROLE;
   INSERT INTO public.members (id,name,name_normalized,phone,email,birthday,is_minor,has_whatsapp,consent_recorded,sensitive_consent_recorded,duplicate_flag,created_by,created_at,updated_at,deleted_at) VALUES ('b0000000-0000-4000-8000-000000000103','SensT','senst','3009000009','sens-true@example.com','2000-01-15',false,false,true,false,false,v_leader,now(),now(),NULL) ON CONFLICT (id) DO NOTHING;
-  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true);
   BEGIN v_reg:=public.register_retreat_preinscription_for_member(p_member_id:='b0000000-0000-4000-8000-000000000103',p_general_consent:=true,p_sensitive_consent:=true,p_denomination:='Catolica',p_community_name:='MD CC'); SELECT denomination,community_name,sensitive_consent_accepted_at INTO v_denom,v_comm,v_sens_at FROM public.retreat_registrations WHERE id=v_reg; IF v_denom<>'Catolica' OR v_comm<>'MD CC' OR v_sens_at IS NULL THEN RAISE EXCEPTION 'FAIL: sens true'; END IF; RAISE NOTICE 'PASS: sens true'; EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; RAISE EXCEPTION 'FAIL: sens true % %',SQLSTATE,SQLERRM; END; RESET ROLE;
   SET LOCAL ROLE anon; PERFORM set_config('request.jwt.claims', json_build_object('role','anon')::text,true);
   BEGIN PERFORM public.register_retreat_preinscription_for_member(p_member_id:=v_b,p_general_consent:=true); RAISE EXCEPTION 'FAIL: anon'; EXCEPTION WHEN insufficient_privilege THEN RAISE NOTICE 'PASS: anon deny'; WHEN OTHERS THEN IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; IF SQLSTATE='42501' OR SQLERRM LIKE '%permission denied%' THEN RAISE NOTICE 'PASS: anon deny %',SQLERRM; ELSE RAISE EXCEPTION 'FAIL: anon % %',SQLSTATE,SQLERRM; END IF; END; RESET ROLE;
   SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_server::text,'app_metadata',json_build_object('role','server'))::text,true);
-  -- 018 widened the RPC role gate to include server (capture open to all roles)
-  BEGIN v_reg:=public.register_retreat_preinscription_for_member(p_member_id:=v_b,p_general_consent:=true); IF v_reg IS NULL THEN RAISE EXCEPTION 'FAIL: server rpc returned NULL'; END IF; RAISE NOTICE 'PASS: server can register retreat preinscription for member'; EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; RAISE EXCEPTION 'FAIL: server rpc % %',SQLSTATE,SQLERRM; END; RESET ROLE;
+  BEGIN PERFORM public.register_retreat_preinscription_for_member(p_member_id:=v_b,p_general_consent:=true); RAISE EXCEPTION 'FAIL: server rpc should 42501'; EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; IF SQLSTATE<>'42501' THEN RAISE EXCEPTION 'FAIL: server expected 42501 got % %',SQLSTATE,SQLERRM; END IF; RAISE NOTICE 'PASS: server deny 42501 %',SQLERRM; END; RESET ROLE;
+  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true);
+  BEGIN PERFORM public.register_retreat_preinscription_for_member(p_member_id:=v_b,p_general_consent:=true); RAISE EXCEPTION 'FAIL: leader rpc should 42501'; EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF; IF SQLSTATE<>'42501' THEN RAISE EXCEPTION 'FAIL: leader expected 42501 got % %',SQLSTATE,SQLERRM; END IF; RAISE NOTICE 'PASS: leader deny 42501 %',SQLERRM; END; RESET ROLE;
   SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true); UPDATE public.app_settings SET value='100',updated_by=v_super WHERE key='retreat.youth.total_cost'; RESET ROLE;
-  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true); INSERT INTO public.retreat_payments (registration_id,amount,recorded_by) VALUES (v_first,40,v_leader); RESET ROLE; SELECT status INTO v_status FROM public.retreat_registrations WHERE id=v_first; IF v_status<>'pagos_parciales' THEN RAISE EXCEPTION 'FAIL: pagos_parciales %',v_status; END IF; RAISE NOTICE 'PASS: pagos_parciales';
-  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_leader::text,'app_metadata',json_build_object('role','leader'))::text,true); INSERT INTO public.retreat_payments (registration_id,amount,recorded_by) VALUES (v_first,60,v_leader); RESET ROLE; SELECT status INTO v_status FROM public.retreat_registrations WHERE id=v_first; IF v_status<>'inscrito' THEN RAISE EXCEPTION 'FAIL: inscrito %',v_status; END IF; RAISE NOTICE 'PASS: inscrito';
+  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true); INSERT INTO public.retreat_payments (registration_id,amount,recorded_by) VALUES (v_first,40,v_leader); RESET ROLE; SELECT status INTO v_status FROM public.retreat_registrations WHERE id=v_first; IF v_status<>'pagos_parciales' THEN RAISE EXCEPTION 'FAIL: pagos_parciales %',v_status; END IF; RAISE NOTICE 'PASS: pagos_parciales';
+  SET LOCAL ROLE authenticated; PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',v_super::text,'app_metadata',json_build_object('role','super_admin'))::text,true); INSERT INTO public.retreat_payments (registration_id,amount,recorded_by) VALUES (v_first,60,v_leader); RESET ROLE; SELECT status INTO v_status FROM public.retreat_registrations WHERE id=v_first; IF v_status<>'inscrito' THEN RAISE EXCEPTION 'FAIL: inscrito %',v_status; END IF; RAISE NOTICE 'PASS: inscrito';
   RAISE NOTICE 'All member-linked RPC tests passed';
 END $$;
 

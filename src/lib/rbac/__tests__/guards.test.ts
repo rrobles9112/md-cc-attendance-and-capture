@@ -11,6 +11,7 @@ import {
   canExport,
   canManageARCO,
   canManageRetreatRegistrations,
+  canMutateRetreatPreinscriptions,
   canManageAttendanceSessions,
   canRecordRetreatPayments,
   canDeleteRetreatRegistration,
@@ -166,16 +167,30 @@ describe("RBAC Guards", () => {
   });
 
   describe("canManageRetreatRegistrations", () => {
-    it("is true for super_admin (retreat module open to all staff roles)", () => {
+    it("is true for super_admin (retreat listing remains open to all staff)", () => {
       expect(canManageRetreatRegistrations("super_admin")).toBe(true);
     });
 
-    it("is true for leader", () => {
+    it("is true for leader (view/list only)", () => {
       expect(canManageRetreatRegistrations("leader")).toBe(true);
     });
 
-    it("is true for server (preinscriptions open to every staff role per product decision)", () => {
+    it("is true for server (view/list only)", () => {
       expect(canManageRetreatRegistrations("server")).toBe(true);
+    });
+  });
+
+  describe("canMutateRetreatPreinscriptions", () => {
+    it("is true for super_admin", () => {
+      expect(canMutateRetreatPreinscriptions("super_admin")).toBe(true);
+    });
+
+    it("is false for leader", () => {
+      expect(canMutateRetreatPreinscriptions("leader")).toBe(false);
+    });
+
+    it("is false for server", () => {
+      expect(canMutateRetreatPreinscriptions("server")).toBe(false);
     });
   });
 
@@ -194,27 +209,25 @@ describe("RBAC Guards", () => {
   });
 
   describe("canRecordRetreatPayments", () => {
-    it("is true for super_admin (mirrors retreat_payments RLS)", () => {
+    it("is true for super_admin only (retreat payment writes)", () => {
       expect(canRecordRetreatPayments("super_admin")).toBe(true);
     });
 
-    it("is true for leader", () => {
-      expect(canRecordRetreatPayments("leader")).toBe(true);
+    it("is false for leader", () => {
+      expect(canRecordRetreatPayments("leader")).toBe(false);
     });
 
-    it("is false for server (sees the retreat module but not payments)", () => {
+    it("is false for server", () => {
       expect(canRecordRetreatPayments("server")).toBe(false);
     });
   });
 
   describe("canDeleteRetreatRegistration", () => {
-    it.each(["super_admin", "leader"] as const)("returns true for %s", (role) => {
-      expect(canDeleteRetreatRegistration(role)).toBe(true)
+    it("returns true for super_admin", () => {
+      expect(canDeleteRetreatRegistration("super_admin")).toBe(true)
     })
 
-    // NOTE: AppRole union is only 'super_admin' | 'leader' | 'server'
-    // (src/lib/rbac/types.ts) — the negative list is just `server`.
-    it.each(["server"] as const)("returns false for %s", (role) => {
+    it.each(["leader", "server"] as const)("returns false for %s", (role) => {
       expect(canDeleteRetreatRegistration(role)).toBe(false)
     })
   })
