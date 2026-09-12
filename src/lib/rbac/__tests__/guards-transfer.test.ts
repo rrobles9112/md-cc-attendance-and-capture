@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { canTransferRetreatToValientes } from "../guards";
 
-describe("canTransferRetreatToValientes (PR1 T-001 RED)", () => {
-  it("leader can transfer", () => {
-    expect(canTransferRetreatToValientes("leader")).toBe(true);
+describe("canTransferRetreatToValientes", () => {
+  it("leader cannot transfer (super_admin-only mutation)", () => {
+    expect(canTransferRetreatToValientes("leader")).toBe(false);
   });
   it("super_admin can transfer", () => {
     expect(canTransferRetreatToValientes("super_admin")).toBe(true);
@@ -16,9 +16,8 @@ describe("canTransferRetreatToValientes (PR1 T-001 RED)", () => {
     expect(canTransferRetreatToValientes(undefined as any)).toBe(false);
     expect(canTransferRetreatToValientes("" as any)).toBe(false);
   });
-  it("reuses canCreate semantics (single line delegation)", () => {
-    // must be exactly canCreate behavior, not wider than canManageRetreatRegistrations
-    expect(canTransferRetreatToValientes("leader")).toBe(true);
+  it("is narrower than canManageRetreatRegistrations (view stays open)", () => {
+    expect(canTransferRetreatToValientes("leader")).toBe(false);
     expect(canTransferRetreatToValientes("server")).toBe(false);
   });
 });

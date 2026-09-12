@@ -89,7 +89,7 @@ All dashboard routes require authentication — unauthenticated users are redire
 | `/login` | Sign in redirect | Public | Redirects to `/` |
 | `/capture` | Visitor capture | super_admin, leader | First-time visitor data capture with Ley 1581 consent; offline-first |
 | `/attendance` | Attendance | All roles | Mark attendance per session; realtime presence via Supabase Realtime |
-| `/members` | Member directory | All authenticated | Browse/search members; edit/delete gated by role |
+| `/members` | Member directory | All authenticated | Browse/search members; **edit/delete super_admin only** |
 | `/export` | Data export | super_admin, leader | Client-side CSV/XLSX export (SheetJS) |
 | `/admin` | Admin panel | super_admin | Tabs: **users** (role management), **audit** (audit_log viewer), **arco** (ARCO request workflow), **settings** (DPO email etc.), **sync** (offline queue), **purge** (90-day soft-delete purge) |
 
@@ -197,6 +197,9 @@ npm run lint
 | server | ❌ | ❌ | ❌ | ✅ | ❌ |
 
 Enforced at database layer (RLS) — app-level guards are UX-only.
+
+Retreat preinscriptions: all staff may list/search. **Create, pay, transfer, and delete are super_admin only.**
+Capture of **new** members stays open to staff roles; updating existing members is super_admin only.
 
 ## Compliance — Colombian Ley 1581 (Habeas Data)
 

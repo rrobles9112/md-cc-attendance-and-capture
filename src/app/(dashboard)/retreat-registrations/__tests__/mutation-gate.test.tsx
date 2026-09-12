@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 
-// Hoisted mocks — follow pagination.test.tsx page-mock pattern
 const mockSelect = vi.hoisted(() => vi.fn())
 const mockEq = vi.hoisted(() => vi.fn())
 const mockOrder = vi.hoisted(() => vi.fn())
@@ -97,45 +96,50 @@ function installPolyfills() {
   })
 }
 
-describe('retreat-registrations create-preinscription gate', () => {
+const sampleRegistration = {
+  id: 'reg-1',
+  name: 'Ana Pérez',
+  email: 'ana@example.com',
+  phone: '3001234567',
+  birthday: '2000-01-15',
+  is_minor: false,
+  legal_rep_name: null,
+  status: 'preinscrito',
+  created_at: '2026-08-10T10:00:00Z',
+  transferred_at: null,
+  transferred_member_id: null,
+  member_id: null,
+}
+
+describe('retreat-registrations mutation gate (super_admin only)', () => {
   afterEach(() => cleanup())
 
   beforeEach(() => {
     vi.clearAllMocks()
     installPolyfills()
-    registrationsData = []
-    registrationsCount = 0
+    registrationsData = [sampleRegistration]
+    registrationsCount = 1
     paymentsData = []
     mockFrom.mockImplementation((table: string) => makeChain(table))
-    mockUseRole.mockReturnValue({ role: 'leader', loading: false })
   })
 
-  it('(a) super_admin → "Nueva preinscripción" button is present in the no-print toolbar', async () => {
+  it('leader can list preinscriptions but cannot pay, transfer, or delete', async () => {
+    mockUseRole.mockReturnValue({ role: 'leader', loading: false })
+    const Page = (await import('../page')).default
+    render(<Page />)
+    await waitFor(() => expect(screen.getByText('Ana Pérez')).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: /Registrar pago/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Transferir a Valientes/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Eliminar preinscripción de Ana Pérez/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /Registrar pago/i })).not.toBeInTheDocument()
+  })
+
+  it('super_admin sees payment, transfer, and delete controls', async () => {
     mockUseRole.mockReturnValue({ role: 'super_admin', loading: false })
     const Page = (await import('../page')).default
     render(<Page />)
-    await waitFor(() => expect(mockSelect).toHaveBeenCalled())
-    const button = await screen.findByRole('button', { name: /Nueva preinscripción/i })
-    expect(button).toBeInTheDocument()
-    const toolbar = button.closest('.no-print')
-    expect(toolbar).not.toBeNull()
-  })
-
-  it("(b) role 'server' → page remains visible, create button is hidden", async () => {
-    mockUseRole.mockReturnValue({ role: 'server', loading: false } as never)
-    const Page = (await import('../page')).default
-    render(<Page />)
-    await waitFor(() => expect(mockSelect).toHaveBeenCalled())
-    expect(screen.queryByText('No tiene permisos para acceder a esta sección')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Nueva preinscripción/i })).not.toBeInTheDocument()
-  })
-
-  it("(c) role 'leader' → page remains visible, create button is hidden", async () => {
-    mockUseRole.mockReturnValue({ role: 'leader', loading: false })
-    const Page = (await import('../page')).default
-    render(<Page />)
-    await waitFor(() => expect(mockSelect).toHaveBeenCalled())
-    expect(screen.queryByText('No tiene permisos para acceder a esta sección')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Nueva preinscripción/i })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('Ana Pérez')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /Registrar pago/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Eliminar preinscripción de Ana Pérez/i })).toBeInTheDocument()
   })
 })

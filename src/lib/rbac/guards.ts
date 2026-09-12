@@ -13,11 +13,19 @@ export function canCreate(role: AppRole): boolean {
 }
 
 /**
- * The retreat module (preinscriptions) is open to every staff role
- * (super_admin, leader, server), per product decision.
+ * The retreat module listing is open to every staff role
+ * (super_admin, leader, server). Mutations are super_admin-only.
  */
 export function canManageRetreatRegistrations(role: AppRole): boolean {
   return role === "super_admin" || role === "leader" || role === "server";
+}
+
+/**
+ * Create/update/delete/pay/transfer of retreat preinscriptions is exclusive
+ * to super_admin. Listing stays on canManageRetreatRegistrations.
+ */
+export function canMutateRetreatPreinscriptions(role: AppRole): boolean {
+  return role === "super_admin";
 }
 
 /**
@@ -30,14 +38,14 @@ export function canManageAttendanceSessions(role: AppRole): boolean {
 
 /**
  * Retreat payment recording mirrors the retreat_payments RLS policies
- * (super_admin + leader). Server sees the retreat module but not payments.
+ * (super_admin only). Other staff can list preinscriptions but not mutate.
  */
 export function canRecordRetreatPayments(role: AppRole): boolean {
-  return role === "super_admin" || role === "leader";
+  return canMutateRetreatPreinscriptions(role);
 }
 
 export function canDeleteRetreatRegistration(role: AppRole): boolean {
-  return role === "super_admin" || role === "leader";
+  return canMutateRetreatPreinscriptions(role);
 }
 
 export function canModify(role: AppRole): boolean {
@@ -77,12 +85,12 @@ export function canViewPastoreo(role: AppRole): boolean {
 }
 
 /**
- * Ley 1581 transfer gate — leader+super_admin (same as canCreate).
+ * Ley 1581 transfer gate — super_admin only.
  * Mirrors RPC `transfer_retreat_to_valientes` role gate (42501).
  */
 export function canTransferRetreatToValientes(role: AppRole | null | undefined): boolean {
   if (!role) return false;
-  return canCreate(role as AppRole);
+  return canMutateRetreatPreinscriptions(role);
 }
 
 export function canManageWhatsappSettings(role: AppRole): boolean {

@@ -185,13 +185,45 @@ BEGIN
   END IF;
   RAISE NOTICE 'PASS: super_admin can soft-delete members';
 
-  -- Test 9: server can register retreat preinscription for a member via RPC (018)
+  -- Test 9: server CANNOT register retreat preinscription for a member via RPC
   PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_server_id::text)::text, true);
+  BEGIN
+    v_retreat_registration_id := public.register_retreat_preinscription_for_member(v_server_member_id, NULL, NULL, true, false, NULL, NULL);
+    RAISE EXCEPTION 'FAIL: server should NOT register retreat preinscription for a member';
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLERRM LIKE 'FAIL:%' THEN
+        RAISE;
+      END IF;
+      IF SQLSTATE <> '42501' AND SQLERRM NOT LIKE '%not_authorized%' THEN
+        RAISE EXCEPTION 'FAIL: server preinscription expected 42501, got % %', SQLSTATE, SQLERRM;
+      END IF;
+      RAISE NOTICE 'PASS: server CANNOT register retreat preinscription for member';
+  END;
+
+  -- Test 9b: leader CANNOT register retreat preinscription for a member via RPC
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_leader_id::text)::text, true);
+  BEGIN
+    v_retreat_registration_id := public.register_retreat_preinscription_for_member(v_leader_member_id, NULL, NULL, true, false, NULL, NULL);
+    RAISE EXCEPTION 'FAIL: leader should NOT register retreat preinscription for a member';
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLERRM LIKE 'FAIL:%' THEN
+        RAISE;
+      END IF;
+      IF SQLSTATE <> '42501' AND SQLERRM NOT LIKE '%not_authorized%' THEN
+        RAISE EXCEPTION 'FAIL: leader preinscription expected 42501, got % %', SQLSTATE, SQLERRM;
+      END IF;
+      RAISE NOTICE 'PASS: leader CANNOT register retreat preinscription for member';
+  END;
+
+  -- Test 9c: super_admin CAN register retreat preinscription for a member via RPC
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_super_admin_id::text)::text, true);
   v_retreat_registration_id := public.register_retreat_preinscription_for_member(v_server_member_id, NULL, NULL, true, false, NULL, NULL);
   IF v_retreat_registration_id IS NULL THEN
-    RAISE EXCEPTION 'FAIL: server preinscription RPC returned NULL';
+    RAISE EXCEPTION 'FAIL: super_admin preinscription RPC returned NULL';
   END IF;
-  RAISE NOTICE 'PASS: server can register retreat preinscription for member';
+  RAISE NOTICE 'PASS: super_admin can register retreat preinscription for member';
 
   -- Cleanup ephemeral rows only — keep seeded auth users / sample data.
   -- The ephemeral retreat_registrations row (v_retreat_registration_id) is

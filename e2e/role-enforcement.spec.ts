@@ -91,7 +91,7 @@ test.describe('Role Enforcement', () => {
     await page.goto('/retreat-registrations')
     await expect(page).toHaveURL(/\/retreat-registrations/)
     await expect(page.getByRole('heading', { name: 'Preinscripciones al retiro' })).toBeVisible()
-    await expect(page.getByRole('columnheader', { name: 'Registrar pago' })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'Registrar pago' })).toHaveCount(0)
     await expect(page.getByText('No tiene permisos para acceder a esta sección')).toHaveCount(0)
   })
 

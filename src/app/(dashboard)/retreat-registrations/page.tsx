@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useRole } from '@/hooks/useRole'
-import { canDeleteRetreatRegistration, canManageRetreatRegistrations, canManageUsers, canRecordRetreatPayments, canTransferRetreatToValientes } from '@/lib/rbac/guards'
+import { canDeleteRetreatRegistration, canManageRetreatRegistrations, canManageUsers, canMutateRetreatPreinscriptions, canRecordRetreatPayments, canTransferRetreatToValientes } from '@/lib/rbac/guards'
 import { RETREAT_EVENT_KEY } from '@/lib/retreat/constants'
 import { RetreatPreinscriptionCreate } from '@/components/retreat/RetreatPreinscriptionCreate'
 import { buildReportRows, exportRetreatToXLSX, formatYYYYMMDD } from '@/lib/retreat/export'
@@ -265,8 +265,10 @@ export default function RetreatRegistrationsPage() {
 
   const parsedTotal = parsePositiveTotal(storedTotal)
   const paymentsBlocked = isRetreatPaymentBlocked(storedTotal)
+  const canMutate = !!role && canMutateRetreatPreinscriptions(role)
   const canRecordPayments = !!role && canRecordRetreatPayments(role)
   const canDelete = canDeleteRetreatRegistration(role)
+  const mutationColSpan = canMutate ? 11 : 8
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
   const fromDisplay = totalCount === 0 ? 0 : (page - 1) * pageSize + 1
   const toDisplay = Math.min(page * pageSize, totalCount)
@@ -603,11 +605,13 @@ export default function RetreatRegistrationsPage() {
               </Tabs>
 
       <div className="no-print flex flex-wrap gap-2">
+            {canMutate && (
             <RetreatPreinscriptionCreate
               disabled={!isOnline || !hasSession}
               disabledTitle="Requiere conexión"
               onSuccess={() => void loadData()}
             />
+            )}
             <Button variant="outline" size="sm" disabled={!isOnline || !hasSession || loadingExport} title={!isOnline || !hasSession ? 'Requiere conexión' : undefined} onClick={() => void handleExport(false)}>
           <Download className="mr-2 h-4 w-4" /> Exportar estado de pago
         </Button>
@@ -631,15 +635,15 @@ export default function RetreatRegistrationsPage() {
                   <TableHead className="hidden md:table-cell whitespace-nowrap">Saldo</TableHead>
                   <TableHead className="hidden lg:table-cell whitespace-nowrap">% Pagado</TableHead>
                   <TableHead className="hidden lg:table-cell whitespace-nowrap">Último abono</TableHead>
-                  <TableHead className="w-56 md:w-64">Registrar pago</TableHead>
-                  <TableHead className="hidden md:table-cell w-40">Transferir</TableHead>
+                  {canMutate && <TableHead className="w-56 md:w-64">Registrar pago</TableHead>}
+                  {canMutate && <TableHead className="hidden md:table-cell w-40">Transferir</TableHead>}
                   {canDelete && <TableHead className="whitespace-nowrap">Acciones</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {registrations.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={canDelete ? 11 : 10} className="text-center text-muted-foreground">
+                <TableCell colSpan={mutationColSpan} className="text-center text-muted-foreground">
                   No hay preinscripciones registradas
                 </TableCell>
               </TableRow>
@@ -679,6 +683,7 @@ export default function RetreatRegistrationsPage() {
                         ? new Date(abonos.last).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
                         : '—'}
                     </TableCell>
+                        {canMutate && (
                         <TableCell className="w-56 md:w-64">
                           {registration.status === 'inscrito' ? (
                             <Badge variant="secondary" className="bg-emerald-50 text-emerald-800">
@@ -746,6 +751,8 @@ export default function RetreatRegistrationsPage() {
                             </div>
                           )}
                         </TableCell>
+                        )}
+                        {canMutate && (
                         <TableCell className="hidden md:table-cell w-40">
                           {registration.transferred_at ? (
                             <Badge variant="secondary" className="bg-emerald-50 text-emerald-800" title={new Date(registration.transferred_at).toLocaleDateString('es-CO')}>
@@ -783,6 +790,7 @@ export default function RetreatRegistrationsPage() {
                             </span>
                           )}
                         </TableCell>
+                        )}
                         {canDelete && (
                           <TableCell className="whitespace-nowrap">
                             <Button
