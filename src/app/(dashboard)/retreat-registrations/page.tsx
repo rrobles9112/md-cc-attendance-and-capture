@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Download, Printer, Search, UserPlus } from 'lucide-react'
+import { Download, Pencil, Printer, Search, UserPlus } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -17,6 +17,7 @@ import { useRole } from '@/hooks/useRole'
 import { canDeleteRetreatRegistration, canManageRetreatRegistrations, canManageUsers, canMutateRetreatPreinscriptions, canRecordRetreatPayments, canTransferRetreatToValientes } from '@/lib/rbac/guards'
 import { RETREAT_EVENT_KEY } from '@/lib/retreat/constants'
 import { RetreatPreinscriptionCreate } from '@/components/retreat/RetreatPreinscriptionCreate'
+import { RetreatPreinscriptionEdit } from '@/components/retreat/RetreatPreinscriptionEdit'
 import { buildReportRows, exportRetreatToXLSX, formatYYYYMMDD } from '@/lib/retreat/export'
 import {
   isRetreatPaymentBlocked,
@@ -49,6 +50,8 @@ interface RetreatRegistrationRow {
   transferred_at: string | null
   transferred_member_id: string | null
   member_id: string | null
+  has_whatsapp: boolean
+  whatsapp_number: string | null
 }
 
 interface RetreatPaymentRow {
@@ -133,6 +136,7 @@ export default function RetreatRegistrationsPage() {
   const [transferConsent, setTransferConsent] = useState(false)
   const [transferDup, setTransferDup] = useState<{ id: string; name: string } | null>(null)
   const [transferring, setTransferring] = useState(false)
+  const [editTarget, setEditTarget] = useState<RetreatRegistrationRow | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<RetreatRegistrationRow | null>(null)
   const [deleteMode, setDeleteMode] = useState<DeleteMode>('both')
   const [deleteConfirmed, setDeleteConfirmed] = useState(false)
@@ -793,14 +797,24 @@ export default function RetreatRegistrationsPage() {
                         )}
                         {canDelete && (
                           <TableCell className="whitespace-nowrap">
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              aria-label={`Eliminar preinscripción de ${registration.name}`}
-                              onClick={() => openDeleteDialog(registration)}
-                            >
-                              Eliminar
-                            </Button>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                aria-label={`Editar preinscripción de ${registration.name}`}
+                                onClick={() => setEditTarget(registration)}
+                              >
+                                <Pencil className="mr-1 h-4 w-4" /> Editar
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                aria-label={`Eliminar preinscripción de ${registration.name}`}
+                                onClick={() => openDeleteDialog(registration)}
+                              >
+                                Eliminar
+                              </Button>
+                            </div>
                           </TableCell>
                         )}
                   </TableRow>
@@ -931,6 +945,17 @@ export default function RetreatRegistrationsPage() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+
+              <RetreatPreinscriptionEdit
+                registration={editTarget}
+                open={editTarget !== null}
+                onOpenChange={(open) => {
+                  if (!open) setEditTarget(null)
+                }}
+                onSaved={() => {
+                  void loadData()
+                }}
+              />
 
           <div className="print-header hidden print:block text-sm text-muted-foreground mb-4">
             Confidencial Ley 1581 — Uso interno MD CC — Evento: {RETREAT_EVENT_KEY} — Generado: {new Date().toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
