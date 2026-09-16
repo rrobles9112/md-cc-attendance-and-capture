@@ -49,7 +49,7 @@ const adultPayload: CaptureSubmitPayload = {
 describe('retreat constants', () => {
   it('locks the October 2026 event key and Spanish pre-registration copy', () => {
     expect(RETREAT_EVENT_KEY).toBe('retiro-juvenil-octubre-2026')
-    expect(RETREAT_PAGE_HEADING).toBe('Retiro Juvenil Octubre 2026')
+    expect(RETREAT_PAGE_HEADING).toBe('Un Corazón Nuevo')
     expect(RETREAT_SUBMIT_LABEL).toBe('Preinscribirme al retiro')
   })
 })

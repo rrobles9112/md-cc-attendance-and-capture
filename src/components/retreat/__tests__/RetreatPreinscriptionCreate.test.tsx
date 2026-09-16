@@ -12,13 +12,21 @@ vi.mock('@/lib/retreat/submit-adapter', () => ({
 
 vi.mock('@/lib/retreat/constants', () => ({
   RETREAT_EVENT_KEY: 'retiro-juvenil-octubre-2026',
-  RETREAT_PAGE_HEADING: 'Retiro Juvenil Octubre 2026',
-  RETREAT_PAGE_DESCRIPTION: 'Complete el formulario para preinscribirse al retiro juvenil.',
+  RETREAT_PAGE_KICKER: 'Retiro juvenil',
+  RETREAT_PAGE_HEADING: 'Un Corazón Nuevo',
+  RETREAT_PAGE_DESCRIPTION:
+    'Un espíritu nuevo · Ezequiel 36,26. 23, 24 y 25 de octubre. Complete el formulario para preinscribirse. Esta preinscripción no es una inscripción completa.',
+  RETREAT_DASHBOARD_HEADING: 'Preinscripciones — Un Corazón Nuevo',
+  RETREAT_DASHBOARD_DESCRIPTION:
+    'Consulte las preinscripciones al retiro Un Corazón Nuevo y registre cuotas consecutivas',
+  RETREAT_CREATE_DIALOG_DESCRIPTION:
+    'Registre una preinscripción al retiro Un Corazón Nuevo. La persona quedará como Preinscrito con sus sellos de consentimiento (Ley 1581 pdtp-v1.0-2026-07-17).',
   RETREAT_SUBMIT_LABEL: 'Preinscribirme al retiro',
   RETREAT_SUBMITTING_LABEL: 'Enviando preinscripción...',
   RETREAT_SUCCESS_MESSAGE: 'Preinscripción enviada exitosamente',
   RETREAT_ERROR_MESSAGE: 'Error al enviar la preinscripción',
-  RETREAT_PERSONAL_DESCRIPTION: 'Información de contacto para la preinscripción al retiro',
+  RETREAT_PERSONAL_DESCRIPTION:
+    'Información de contacto para la preinscripción al retiro Un Corazón Nuevo',
 }))
 
 vi.mock('sonner', () => ({
@@ -153,7 +161,7 @@ describe('RetreatPreinscriptionCreate', () => {
     expect(button).toHaveAttribute('title', 'Requiere conexión')
     fireEvent.click(button)
     // Dialog should not open — privacy copy / dialog title absent
-    expect(screen.queryByText('Registre una preinscripción al retiro juvenil. La persona quedará como Preinscrito con sus sellos de consentimiento (Ley 1581 pdtp-v1.0-2026-07-17).')).not.toBeInTheDocument()
+    expect(screen.queryByText('Registre una preinscripción al retiro Un Corazón Nuevo. La persona quedará como Preinscrito con sus sellos de consentimiento (Ley 1581 pdtp-v1.0-2026-07-17).')).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
@@ -167,7 +175,7 @@ describe('RetreatPreinscriptionCreate', () => {
     })
     // Dialog copy es-CO — heading is distinct from toolbar button
     expect(screen.getByRole('heading', { name: 'Nueva preinscripción' })).toBeInTheDocument()
-    expect(screen.getByText('Registre una preinscripción al retiro juvenil. La persona quedará como Preinscrito con sus sellos de consentimiento (Ley 1581 pdtp-v1.0-2026-07-17).')).toBeInTheDocument()
+    expect(screen.getByText('Registre una preinscripción al retiro Un Corazón Nuevo. La persona quedará como Preinscrito con sus sellos de consentimiento (Ley 1581 pdtp-v1.0-2026-07-17).')).toBeInTheDocument()
     // CaptureForm mounted with retreat variant: retreat privacy copy visible
     expect(screen.getByText(/PREINSCRIPCIÓN AL RETIRO JUVENIL/)).toBeInTheDocument()
     // Retreat submit label visible (proves variant=retreat)

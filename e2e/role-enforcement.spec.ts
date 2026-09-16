@@ -78,8 +78,8 @@ test.describe('Role Enforcement', () => {
 
     await page.locator('a[href="/retreat-registrations"]').click()
     await expect(page).toHaveURL(/\/retreat-registrations/)
-    await expect(page.getByRole('heading', { name: 'Preinscripciones al retiro' })).toBeVisible()
-    await expect(page.getByText('Consulte las preinscripciones y registre cuotas consecutivas')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Preinscripciones — Un Corazón Nuevo' })).toBeVisible()
+    await expect(page.getByText('Consulte las preinscripciones al retiro Un Corazón Nuevo y registre cuotas consecutivas')).toBeVisible()
     await expect(page.locator('a[href="/admin"]')).toHaveCount(0)
     await expect(page.getByText('Costo total del retiro', { exact: true })).toHaveCount(0)
   })
@@ -90,7 +90,7 @@ test.describe('Role Enforcement', () => {
 
     await page.goto('/retreat-registrations')
     await expect(page).toHaveURL(/\/retreat-registrations/)
-    await expect(page.getByRole('heading', { name: 'Preinscripciones al retiro' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Preinscripciones — Un Corazón Nuevo' })).toBeVisible()
     await expect(page.getByRole('columnheader', { name: 'Registrar pago' })).toHaveCount(0)
     await expect(page.getByText('No tiene permisos para acceder a esta sección')).toHaveCount(0)
   })

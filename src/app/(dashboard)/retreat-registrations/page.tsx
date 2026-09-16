@@ -15,7 +15,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useRole } from '@/hooks/useRole'
 import { canDeleteRetreatRegistration, canManageRetreatRegistrations, canManageUsers, canMutateRetreatPreinscriptions, canRecordRetreatPayments, canTransferRetreatToValientes } from '@/lib/rbac/guards'
-import { RETREAT_EVENT_KEY } from '@/lib/retreat/constants'
+import {
+  RETREAT_DASHBOARD_DESCRIPTION,
+  RETREAT_DASHBOARD_HEADING,
+  RETREAT_EVENT_KEY,
+} from '@/lib/retreat/constants'
 import { RetreatPreinscriptionCreate } from '@/components/retreat/RetreatPreinscriptionCreate'
 import { RetreatPreinscriptionEdit } from '@/components/retreat/RetreatPreinscriptionEdit'
 import { buildReportRows, exportRetreatToXLSX, formatYYYYMMDD } from '@/lib/retreat/export'
@@ -546,8 +550,8 @@ export default function RetreatRegistrationsPage() {
   return (
     <div className="w-full max-w-full min-w-0 space-y-6 overflow-x-clip">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Preinscripciones al retiro</h1>
-        <p className="text-muted-foreground">Consulte las preinscripciones y registre cuotas consecutivas</p>
+        <h1 className="text-2xl font-bold tracking-tight">{RETREAT_DASHBOARD_HEADING}</h1>
+        <p className="text-muted-foreground">{RETREAT_DASHBOARD_DESCRIPTION}</p>
       </div>
 
       {canManageUsers(role) && (

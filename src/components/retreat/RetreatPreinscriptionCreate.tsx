@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { CaptureForm } from '@/components/forms/CaptureForm'
+import { RETREAT_CREATE_DIALOG_DESCRIPTION } from '@/lib/retreat/constants'
 import { submitRetreatPreinscription } from '@/lib/retreat/submit-adapter'
 import { UserPlus } from 'lucide-react'
 
@@ -40,10 +41,7 @@ export function RetreatPreinscriptionCreate({
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nueva preinscripción</DialogTitle>
-            <DialogDescription>
-              Registre una preinscripción al retiro juvenil. La persona quedará como Preinscrito con sus sellos de
-              consentimiento (Ley 1581 pdtp-v1.0-2026-07-17).
-            </DialogDescription>
+            <DialogDescription>{RETREAT_CREATE_DIALOG_DESCRIPTION}</DialogDescription>
           </DialogHeader>
           <CaptureForm
             variant="retreat"
