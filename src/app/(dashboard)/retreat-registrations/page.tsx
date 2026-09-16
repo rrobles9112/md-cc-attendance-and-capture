@@ -21,6 +21,7 @@ import { RetreatPreinscriptionEdit } from '@/components/retreat/RetreatPreinscri
 import { buildReportRows, exportRetreatToXLSX, formatYYYYMMDD } from '@/lib/retreat/export'
 import {
   isRetreatPaymentBlocked,
+  normalizeRetreatCostInput,
   parsePositiveTotal,
   remainingBalance,
   retreatStatusLabel,
@@ -163,6 +164,7 @@ export default function RetreatRegistrationsPage() {
       const searchFilter = buildSearchOrFilter(searchDebounced)
       if (searchFilter) query = query.or(searchFilter)
       const [result, total] = await Promise.all([
+        // SAFETY: supabase query builder is thenable but untyped for count+select; resolved shape matches data/count/error
         query as unknown as Promise<{ data: unknown[]; count: number | null; error: unknown }>,
         getRetreatTotalCost(),
       ])
@@ -242,6 +244,7 @@ export default function RetreatRegistrationsPage() {
     }
     let cancelled = false
     const supabase = createClient()
+    // SAFETY: supabase postgrest builder narrowed to typed select promise; or-filter returns id/name rows
     void (supabase
       .from('members')
       .select('id,name')
@@ -278,9 +281,14 @@ export default function RetreatRegistrationsPage() {
   const toDisplay = Math.min(page * pageSize, totalCount)
 
   async function handleSaveCost() {
+    const normalized = normalizeRetreatCostInput(costDraft)
+    if (parsePositiveTotal(normalized) === null) {
+      toast.error('El costo debe ser un número positivo')
+      return
+    }
     setSavingCost(true)
     try {
-      await setRetreatTotalCost(costDraft)
+      await setRetreatTotalCost(normalized)
       toast.success('Costo total del retiro actualizado')
       await loadData()
     } catch {
@@ -536,7 +544,7 @@ export default function RetreatRegistrationsPage() {
       }
 
   return (
-    <div className="space-y-6">
+    <div className="w-full max-w-full min-w-0 space-y-6 overflow-x-clip">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Preinscripciones al retiro</h1>
         <p className="text-muted-foreground">Consulte las preinscripciones y registre cuotas consecutivas</p>
@@ -552,7 +560,7 @@ export default function RetreatRegistrationsPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             <Label htmlFor="retreatTotalCost">Costo total (COP)</Label>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 id="retreatTotalCost"
                 value={costDraft}
@@ -585,14 +593,14 @@ export default function RetreatRegistrationsPage() {
                     Inscritos
                   </TabsTrigger>
                 </TabsList>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="relative flex-1 max-w-sm">
+                <div className="flex w-full min-w-0 flex-wrap items-center gap-3">
+                  <div className="relative w-full min-w-0 flex-1 sm:max-w-sm">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       placeholder="Buscar por nombre, email o teléfono…"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className="max-w-sm pl-9"
+                      className="w-full sm:max-w-sm pl-9"
                     />
                   </div>
                   <Badge variant="outline">{totalCount} preinscripciones</Badge>
@@ -627,7 +635,7 @@ export default function RetreatRegistrationsPage() {
         </Button>
       </div>
 
-      <div className="rounded-lg border">
+      <div className="w-full max-w-full overflow-hidden rounded-lg border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -829,7 +837,7 @@ export default function RetreatRegistrationsPage() {
             <div>
               Mostrando {fromDisplay}–{toDisplay} de {totalCount} · Página {page} de {totalPages}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Button variant="outline" size="sm" disabled={page <= 1 || loadingData} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                 Anterior
               </Button>
