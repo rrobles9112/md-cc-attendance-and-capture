@@ -15,6 +15,10 @@ describe("buildRetreatRegistrationUpdate", () => {
       legalRepName: "",
       hasWhatsapp: true,
       whatsappNumber: " 3009998877 ",
+      hasMedicalConditions: true,
+      medicalConditions: "  Asma ",
+      medicalMedications: " Salbutamol ",
+      medicalDosage: " Cada 8 horas ",
     })
     expect(result.ok).toBe(true)
     if (!result.ok) return
@@ -27,6 +31,10 @@ describe("buildRetreatRegistrationUpdate", () => {
       legal_rep_name: null,
       has_whatsapp: true,
       whatsapp_number: "3009998877",
+      has_medical_conditions: true,
+      medical_conditions: "Asma",
+      medical_medications: "Salbutamol",
+      medical_dosage: "Cada 8 horas",
     })
   })
 
@@ -39,6 +47,10 @@ describe("buildRetreatRegistrationUpdate", () => {
       legalRepName: "  ",
       hasWhatsapp: false,
       whatsappNumber: "",
+      hasMedicalConditions: false,
+      medicalConditions: "",
+      medicalMedications: "",
+      medicalDosage: "",
     })
     expect(result.ok).toBe(false)
     if (result.ok) return
@@ -54,6 +66,10 @@ describe("buildRetreatRegistrationUpdate", () => {
       legalRepName: "",
       hasWhatsapp: false,
       whatsappNumber: "",
+      hasMedicalConditions: false,
+      medicalConditions: "",
+      medicalMedications: "",
+      medicalDosage: "",
     })
     expect(result.ok).toBe(false)
     if (result.ok) return
@@ -69,12 +85,57 @@ describe("buildRetreatRegistrationUpdate", () => {
       legalRepName: "",
       hasWhatsapp: false,
       whatsappNumber: "   ",
+      hasMedicalConditions: false,
+      medicalConditions: "",
+      medicalMedications: "",
+      medicalDosage: "",
     })
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.payload.whatsapp_number).toBeNull()
     expect(result.payload.birthday).toBeNull()
     expect(result.payload.is_minor).toBe(false)
+  })
+
+  it("requires medical conditions detail when the flag is set", () => {
+    const result = buildRetreatRegistrationUpdate({
+      name: "Ana",
+      phone: "3001111111",
+      email: "ana@example.com",
+      birthday: "",
+      legalRepName: "",
+      hasWhatsapp: false,
+      whatsappNumber: "",
+      hasMedicalConditions: true,
+      medicalConditions: "   ",
+      medicalMedications: "",
+      medicalDosage: "",
+    })
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toMatch(/condiciones m/i)
+  })
+
+  it("stores null medical details when the flag is not set", () => {
+    const result = buildRetreatRegistrationUpdate({
+      name: "Ana",
+      phone: "3001111111",
+      email: "ana@example.com",
+      birthday: "",
+      legalRepName: "",
+      hasWhatsapp: false,
+      whatsappNumber: "",
+      hasMedicalConditions: false,
+      medicalConditions: "Asma",
+      medicalMedications: "Salbutamol",
+      medicalDosage: "Cada 8 horas",
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.payload.has_medical_conditions).toBe(false)
+    expect(result.payload.medical_conditions).toBeNull()
+    expect(result.payload.medical_medications).toBeNull()
+    expect(result.payload.medical_dosage).toBeNull()
   })
 })
 
@@ -110,6 +171,10 @@ describe("applyRetreatRegistrationUpdate", () => {
         legalRepName: "",
         hasWhatsapp: false,
         whatsappNumber: "",
+        hasMedicalConditions: false,
+        medicalConditions: "",
+        medicalMedications: "",
+        medicalDosage: "",
       },
       persist,
     )
@@ -128,6 +193,10 @@ describe("applyRetreatRegistrationUpdate", () => {
         legalRepName: "",
         hasWhatsapp: true,
         whatsappNumber: "",
+        hasMedicalConditions: false,
+        medicalConditions: "",
+        medicalMedications: "",
+        medicalDosage: "",
       },
       async (payload) => {
         expect(payload.email).toBe("ana@example.com")
@@ -148,6 +217,10 @@ describe("applyRetreatRegistrationUpdate", () => {
         legalRepName: "",
         hasWhatsapp: false,
         whatsappNumber: "",
+        hasMedicalConditions: false,
+        medicalConditions: "",
+        medicalMedications: "",
+        medicalDosage: "",
       },
       async () => ({ data: [], error: null }),
     )
@@ -166,6 +239,10 @@ describe("applyRetreatRegistrationUpdate", () => {
         legalRepName: "",
         hasWhatsapp: false,
         whatsappNumber: "",
+        hasMedicalConditions: false,
+        medicalConditions: "",
+        medicalMedications: "",
+        medicalDosage: "",
       },
       async () => ({ data: null, error: { code: "23505", message: "duplicate key" } }),
     )

@@ -57,6 +57,10 @@ interface RetreatRegistrationRow {
   member_id: string | null
   has_whatsapp: boolean
   whatsapp_number: string | null
+  has_medical_conditions: boolean
+  medical_conditions: string | null
+  medical_medications: string | null
+  medical_dosage: string | null
 }
 
 interface RetreatPaymentRow {

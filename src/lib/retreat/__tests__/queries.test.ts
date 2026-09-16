@@ -44,6 +44,10 @@ describe("retreat/queries — build query + abonos aggregates (PR2 T-005/T-013)"
     expect(RETREAT_REGISTRATIONS_SELECT).toContain("member_id");
     expect(RETREAT_REGISTRATIONS_SELECT).toContain("has_whatsapp");
     expect(RETREAT_REGISTRATIONS_SELECT).toContain("whatsapp_number");
+    expect(RETREAT_REGISTRATIONS_SELECT).toContain("has_medical_conditions");
+    expect(RETREAT_REGISTRATIONS_SELECT).toContain("medical_conditions");
+    expect(RETREAT_REGISTRATIONS_SELECT).toContain("medical_medications");
+    expect(RETREAT_REGISTRATIONS_SELECT).toContain("medical_dosage");
   });
 
   it("computeRowAbonos 200k+100k total 400k => 75% 2 last", () => {

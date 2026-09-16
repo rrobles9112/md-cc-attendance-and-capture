@@ -23,6 +23,7 @@ test.describe('Public retreat pre-registration', () => {
     await expect(page.getByText(/Un espíritu nuevo · Ezequiel 36,26/)).toBeVisible()
     await expect(page.getByText(/23, 24 y 25 de octubre/)).toBeVisible()
     await expect(page.getByLabel(/Nombre completo/)).toBeVisible()
+    await expect(page.getByText('Condiciones médicas')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Preinscribirme al retiro' })).toBeVisible()
 
     await expect(page.getByText(/PREINSCRIPCIÓN AL RETIRO JUVENIL/)).toBeVisible()

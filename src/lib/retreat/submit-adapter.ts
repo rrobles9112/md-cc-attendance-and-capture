@@ -21,6 +21,10 @@ export async function submitRetreatPreinscriptionForMember(
     p_community_name: payload.communityName,
     p_has_whatsapp: payload.hasWhatsapp,
     p_whatsapp_number: payload.additionalWhatsapp.trim() || null,
+    p_has_medical_conditions: payload.hasMedicalConditions,
+    p_medical_conditions: emptyToNull(payload.medicalConditions),
+    p_medical_medications: emptyToNull(payload.medicalMedications),
+    p_medical_dosage: emptyToNull(payload.medicalDosage),
   })
   if (error) {
     throw error
@@ -43,6 +47,10 @@ export async function submitRetreatPreinscription(
     p_community_name: payload.communityName,
     p_has_whatsapp: payload.hasWhatsapp,
     p_whatsapp_number: payload.additionalWhatsapp.trim() || null,
+    p_has_medical_conditions: payload.hasMedicalConditions,
+    p_medical_conditions: emptyToNull(payload.medicalConditions),
+    p_medical_medications: emptyToNull(payload.medicalMedications),
+    p_medical_dosage: emptyToNull(payload.medicalDosage),
   })
 
   if (error) {

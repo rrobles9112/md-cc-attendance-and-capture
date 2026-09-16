@@ -52,6 +52,10 @@ export type CaptureSubmitPayload = {
   communityName: string
   hasWhatsapp: boolean
   additionalWhatsapp: string
+  hasMedicalConditions: boolean
+  medicalConditions: string
+  medicalMedications: string
+  medicalDosage: string
 }
 
 export type CaptureFormInitialValues = Partial<CaptureSubmitPayload>
@@ -75,6 +79,7 @@ function captureFormConfig(variant: CaptureFormVariant) {
         privacyNotice: PRIVACY_NOTICE_ES,
         showWhatsappCard: true,
         showSocialMediaCard: true,
+        showMedicalCard: false,
       }
     case 'retreat':
       return {
@@ -86,6 +91,7 @@ function captureFormConfig(variant: CaptureFormVariant) {
         privacyNotice: RETREAT_PRIVACY_NOTICE_ES,
         showWhatsappCard: true,
         showSocialMediaCard: false,
+        showMedicalCard: true,
       }
     default: {
       const exhaustive: never = variant
@@ -116,6 +122,11 @@ export function CaptureForm({
   const [hasWhatsapp, setHasWhatsapp] = useState(false)
   const [additionalWhatsapp, setAdditionalWhatsapp] = useState('')
 
+  const [hasMedicalConditions, setHasMedicalConditions] = useState(false)
+  const [medicalConditions, setMedicalConditions] = useState('')
+  const [medicalMedications, setMedicalMedications] = useState('')
+  const [medicalDosage, setMedicalDosage] = useState('')
+
   const [showSocialMedia, setShowSocialMedia] = useState(false)
   const [socialMedia, setSocialMedia] = useState<SocialMediaEntry[]>([])
 
@@ -144,6 +155,10 @@ export function CaptureForm({
     if (initialValues.birthday !== undefined) handleBirthdayChange(initialValues.birthday)
     if (initialValues.legalRepName !== undefined) setLegalRepName(initialValues.legalRepName)
     if (initialValues.hasWhatsapp !== undefined) setHasWhatsapp(initialValues.hasWhatsapp)
+    if (initialValues.hasMedicalConditions !== undefined) setHasMedicalConditions(initialValues.hasMedicalConditions)
+    if (initialValues.medicalConditions !== undefined) setMedicalConditions(initialValues.medicalConditions)
+    if (initialValues.medicalMedications !== undefined) setMedicalMedications(initialValues.medicalMedications)
+    if (initialValues.medicalDosage !== undefined) setMedicalDosage(initialValues.medicalDosage)
   }, [initialValues, handleBirthdayChange])
 
   function addSocialMedia() {
@@ -175,6 +190,10 @@ export function CaptureForm({
       newErrors.consent = consentResult.error!
     }
 
+    if (hasMedicalConditions && !medicalConditions.trim()) {
+      newErrors.medical = 'Indique las condiciones médicas.'
+    }
+
     if (isMinor) {
       const minorResult = validateMinorFields(isMinor, legalRepName)
       if (!minorResult.valid) {
@@ -203,6 +222,10 @@ export function CaptureForm({
         communityName,
         hasWhatsapp,
         additionalWhatsapp: additionalWhatsapp.trim(),
+        hasMedicalConditions,
+        medicalConditions: hasMedicalConditions ? medicalConditions.trim() : '',
+        medicalMedications: hasMedicalConditions ? medicalMedications.trim() : '',
+        medicalDosage: hasMedicalConditions ? medicalDosage.trim() : '',
       }
 
       if (submitAdapter) {
@@ -335,6 +358,10 @@ export function CaptureForm({
     setCommunityName('')
     setHasWhatsapp(false)
     setAdditionalWhatsapp('')
+    setHasMedicalConditions(false)
+    setMedicalConditions('')
+    setMedicalMedications('')
+    setMedicalDosage('')
     setShowSocialMedia(false)
     setSocialMedia([])
     setErrors({})
@@ -442,6 +469,58 @@ export function CaptureForm({
                 placeholder="+573009876543"
               />
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {copy.showMedicalCard && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Condiciones médicas</CardTitle>
+            <CardDescription>Información de salud (opcional y voluntaria)</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="hasMedicalConditions"
+                checked={hasMedicalConditions}
+                onCheckedChange={(checked) => setHasMedicalConditions(checked === true)}
+              />
+              <Label htmlFor="hasMedicalConditions">Tiene alguna condición médica</Label>
+            </div>
+            {hasMedicalConditions && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="medicalConditions">¿Cuáles condiciones? *</Label>
+                  <Input
+                    id="medicalConditions"
+                    value={medicalConditions}
+                    onChange={(e) => setMedicalConditions(e.target.value)}
+                    placeholder="Asma, diabetes, alergias..."
+                    className={errors.medical ? 'border-destructive' : ''}
+                  />
+                  {errors.medical && <p className="text-xs text-destructive">{errors.medical}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="medicalMedications">Medicamentos que toma para su tratamiento</Label>
+                  <Input
+                    id="medicalMedications"
+                    value={medicalMedications}
+                    onChange={(e) => setMedicalMedications(e.target.value)}
+                    placeholder="Salbutamol, insulina..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="medicalDosage">Dosis / cada cuántas horas</Label>
+                  <Input
+                    id="medicalDosage"
+                    value={medicalDosage}
+                    onChange={(e) => setMedicalDosage(e.target.value)}
+                    placeholder="2 puff cada 8 horas..."
+                  />
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       )}

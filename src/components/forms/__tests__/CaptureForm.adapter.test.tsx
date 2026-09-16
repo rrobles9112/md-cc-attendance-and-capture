@@ -135,6 +135,10 @@ describe('CaptureForm submit paths', () => {
       communityName: '',
       hasWhatsapp: false,
       additionalWhatsapp: '',
+      hasMedicalConditions: false,
+      medicalConditions: '',
+      medicalMedications: '',
+      medicalDosage: '',
     })
     expect(membersAddMock).not.toHaveBeenCalled()
     expect(enqueueMock).not.toHaveBeenCalled()
@@ -173,5 +177,39 @@ describe('CaptureForm submit paths', () => {
     expect(screen.getByText('WhatsApp')).toBeInTheDocument()
     expect(screen.getByText('Redes sociales')).toBeInTheDocument()
     expect(screen.getByText(/Registro de asistencia a actividades de la comunidad/)).toBeInTheDocument()
+  })
+})
+
+describe('CaptureForm medical section', () => {
+  it('shows the medical card only for variant=retreat', () => {
+    const { unmount } = render(<CaptureForm variant="retreat" submitAdapter={vi.fn()} />)
+    expect(screen.getByText('Condiciones médicas')).toBeInTheDocument()
+    expect(screen.getByLabelText('Tiene alguna condición médica')).toBeInTheDocument()
+    expect(screen.queryByLabelText(/¿Cuáles condiciones/)).not.toBeInTheDocument()
+    unmount()
+    render(<CaptureForm submitAdapter={vi.fn()} />)
+    expect(screen.queryByText('Condiciones médicas')).not.toBeInTheDocument()
+  })
+
+  it('requires conditions detail when the medical checkbox is checked', async () => {
+    const submitAdapter = vi.fn().mockResolvedValue(undefined)
+    render(<CaptureForm variant="retreat" submitAdapter={submitAdapter} />)
+    fireEvent.change(screen.getByLabelText(/Nombre completo/), { target: { value: 'Ana Pérez' } })
+    fireEvent.change(screen.getByLabelText(/Teléfono/), { target: { value: '3001234567' } })
+    fireEvent.change(screen.getByLabelText(/Correo electrónico/), { target: { value: 'ana@example.com' } })
+    fireEvent.click(screen.getByLabelText(/He leído y acepto/))
+    fireEvent.click(screen.getByLabelText('Tiene alguna condición médica'))
+    fireEvent.click(screen.getByRole('button', { name: 'Preinscribirme al retiro' }))
+    expect(await screen.findByText('Indique las condiciones médicas.')).toBeInTheDocument()
+    expect(submitAdapter).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByLabelText(/¿Cuáles condiciones/), { target: { value: 'Asma' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preinscribirme al retiro' }))
+    await waitFor(() => expect(submitAdapter).toHaveBeenCalledTimes(1))
+    expect(submitAdapter).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hasMedicalConditions: true,
+        medicalConditions: 'Asma',
+      }),
+    )
   })
 })

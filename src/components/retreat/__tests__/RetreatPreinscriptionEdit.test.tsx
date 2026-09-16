@@ -56,6 +56,10 @@ const sample = {
   legal_rep_name: null as string | null,
   has_whatsapp: false,
   whatsapp_number: null as string | null,
+  has_medical_conditions: false,
+  medical_conditions: null as string | null,
+  medical_medications: null as string | null,
+  medical_dosage: null as string | null,
 }
 
 import { RetreatPreinscriptionEdit } from '../RetreatPreinscriptionEdit'
@@ -96,6 +100,34 @@ describe('RetreatPreinscriptionEdit', () => {
     await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith('Preinscripción actualizada'))
     expect(onSaved).toHaveBeenCalledTimes(1)
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('reveals medical fields when the checkbox is checked and saves them', async () => {
+    const onSaved = vi.fn()
+    render(
+      <RetreatPreinscriptionEdit
+        registration={sample}
+        open
+        onOpenChange={vi.fn()}
+        onSaved={onSaved}
+      />,
+    )
+    expect(screen.queryByLabelText(/¿Cuáles condiciones/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Tiene alguna condición médica'))
+    const conditionsInput = screen.getByLabelText(/¿Cuáles condiciones/) as HTMLInputElement
+    fireEvent.change(conditionsInput, { target: { value: 'Asma' } })
+    fireEvent.change(screen.getByLabelText('Medicamentos'), { target: { value: 'Salbutamol' } })
+    fireEvent.change(screen.getByLabelText('Dosis / cada cuántas horas'), { target: { value: 'Cada 8 horas' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1))
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        has_medical_conditions: true,
+        medical_conditions: 'Asma',
+        medical_medications: 'Salbutamol',
+        medical_dosage: 'Cada 8 horas',
+      }),
+    )
   })
 
   it('shows a validation toast and does not persist empty names', async () => {

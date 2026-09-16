@@ -29,6 +29,10 @@ export type RetreatRegistrationEditValues = {
   legal_rep_name: string | null
   has_whatsapp: boolean
   whatsapp_number: string | null
+  has_medical_conditions: boolean
+  medical_conditions: string | null
+  medical_medications: string | null
+  medical_dosage: string | null
 }
 
 export interface RetreatPreinscriptionEditProps {
@@ -56,6 +60,10 @@ export function RetreatPreinscriptionEdit({
   const [legalRepName, setLegalRepName] = useState('')
   const [hasWhatsapp, setHasWhatsapp] = useState(false)
   const [whatsappNumber, setWhatsappNumber] = useState('')
+  const [hasMedicalConditions, setHasMedicalConditions] = useState(false)
+  const [medicalConditions, setMedicalConditions] = useState('')
+  const [medicalMedications, setMedicalMedications] = useState('')
+  const [medicalDosage, setMedicalDosage] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -67,6 +75,10 @@ export function RetreatPreinscriptionEdit({
     setLegalRepName(registration.legal_rep_name ?? '')
     setHasWhatsapp(Boolean(registration.has_whatsapp))
     setWhatsappNumber(registration.whatsapp_number ?? '')
+    setHasMedicalConditions(Boolean(registration.has_medical_conditions))
+    setMedicalConditions(registration.medical_conditions ?? '')
+    setMedicalMedications(registration.medical_medications ?? '')
+    setMedicalDosage(registration.medical_dosage ?? '')
   }, [registration])
 
   async function handleSave() {
@@ -82,6 +94,10 @@ export function RetreatPreinscriptionEdit({
           legalRepName,
           hasWhatsapp,
           whatsappNumber,
+          hasMedicalConditions,
+          medicalConditions,
+          medicalMedications,
+          medicalDosage,
         },
         async (payload: RetreatRegistrationUpdatePayload) => {
           const supabase = createClient()
@@ -188,6 +204,42 @@ export function RetreatPreinscriptionEdit({
               autoComplete="tel"
             />
           </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="retreat-edit-has-medical"
+              checked={hasMedicalConditions}
+              onCheckedChange={(checked) => setHasMedicalConditions(checked === true)}
+            />
+            <Label htmlFor="retreat-edit-has-medical">Tiene alguna condición médica</Label>
+          </div>
+          {hasMedicalConditions && (
+            <>
+              <div className="space-y-1">
+                <Label htmlFor="retreat-edit-medical-conditions">¿Cuáles condiciones?</Label>
+                <Input
+                  id="retreat-edit-medical-conditions"
+                  value={medicalConditions}
+                  onChange={(event) => setMedicalConditions(event.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="retreat-edit-medical-medications">Medicamentos</Label>
+                <Input
+                  id="retreat-edit-medical-medications"
+                  value={medicalMedications}
+                  onChange={(event) => setMedicalMedications(event.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="retreat-edit-medical-dosage">Dosis / cada cuántas horas</Label>
+                <Input
+                  id="retreat-edit-medical-dosage"
+                  value={medicalDosage}
+                  onChange={(event) => setMedicalDosage(event.target.value)}
+                />
+              </div>
+            </>
+          )}
           <DialogFooter>
             <Button
               type="button"

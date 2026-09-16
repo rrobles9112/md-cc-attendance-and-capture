@@ -44,6 +44,10 @@ const adultPayload: CaptureSubmitPayload = {
   communityName: 'San Pablo',
   hasWhatsapp: true,
   additionalWhatsapp: '+573009876543',
+  hasMedicalConditions: true,
+  medicalConditions: 'Asma',
+  medicalMedications: 'Salbutamol',
+  medicalDosage: 'Cada 8 horas',
 }
 
 describe('retreat constants', () => {
@@ -76,6 +80,10 @@ describe('submitRetreatPreinscription', () => {
       p_community_name: 'San Pablo',
       p_has_whatsapp: true,
       p_whatsapp_number: '+573009876543',
+      p_has_medical_conditions: true,
+      p_medical_conditions: 'Asma',
+      p_medical_medications: 'Salbutamol',
+      p_medical_dosage: 'Cada 8 horas',
     })
     expect(fromMock).not.toHaveBeenCalled()
   })
@@ -107,13 +115,34 @@ describe('submitRetreatPreinscription', () => {
       'p_denomination',
       'p_email',
       'p_general_consent',
+      'p_has_medical_conditions',
       'p_has_whatsapp',
       'p_legal_rep_name',
+      'p_medical_conditions',
+      'p_medical_dosage',
+      'p_medical_medications',
       'p_name',
       'p_phone',
       'p_sensitive_consent',
       'p_whatsapp_number',
     ])
+  })
+
+  it('sends null medical details when the flag is not set', async () => {
+    await submitRetreatPreinscription({
+      ...adultPayload,
+      hasMedicalConditions: false,
+      medicalConditions: '   ',
+      medicalMedications: '',
+      medicalDosage: '  ',
+    })
+
+    expect(rpcMock).toHaveBeenCalledTimes(1)
+    const [, args] = rpcMock.mock.calls[0] as [string, Record<string, unknown>]
+    expect(args.p_has_medical_conditions).toBe(false)
+    expect(args.p_medical_conditions).toBeNull()
+    expect(args.p_medical_medications).toBeNull()
+    expect(args.p_medical_dosage).toBeNull()
   })
 
   it('never imports or calls Dexie members.add or enqueue', async () => {

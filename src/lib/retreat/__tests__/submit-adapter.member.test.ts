@@ -25,6 +25,10 @@ const basePayload: CaptureSubmitPayload = {
   communityName: 'San Pablo',
   hasWhatsapp: false,
   additionalWhatsapp: '',
+  hasMedicalConditions: false,
+  medicalConditions: '',
+  medicalMedications: '',
+  medicalDosage: '',
 }
 
 describe('submitRetreatPreinscriptionForMember adapter', () => {
@@ -47,6 +51,10 @@ describe('submitRetreatPreinscriptionForMember adapter', () => {
       p_community_name: 'San Pablo',
       p_has_whatsapp: false,
       p_whatsapp_number: null,
+      p_has_medical_conditions: false,
+      p_medical_conditions: null,
+      p_medical_medications: null,
+      p_medical_dosage: null,
     })
   })
 
@@ -66,6 +74,10 @@ describe('submitRetreatPreinscriptionForMember adapter', () => {
       p_community_name: 'San Pablo',
       p_has_whatsapp: true,
       p_whatsapp_number: '+573009876543',
+      p_has_medical_conditions: false,
+      p_medical_conditions: null,
+      p_medical_medications: null,
+      p_medical_dosage: null,
     })
   })
 
