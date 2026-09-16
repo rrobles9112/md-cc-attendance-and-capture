@@ -1,541 +1,708 @@
-'use client'
+"use client";
 
-import { useCallback, useEffect, useState } from 'react'
-import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Download, Printer, Search, UserPlus } from 'lucide-react'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useRole } from '@/hooks/useRole'
-import { canDeleteRetreatRegistration, canManageRetreatRegistrations, canManageUsers, canMutateRetreatPreinscriptions, canRecordRetreatPayments, canTransferRetreatToValientes } from '@/lib/rbac/guards'
-import { RETREAT_EVENT_KEY } from '@/lib/retreat/constants'
-import { RetreatPreinscriptionCreate } from '@/components/retreat/RetreatPreinscriptionCreate'
-import { buildReportRows, exportRetreatToXLSX, formatYYYYMMDD } from '@/lib/retreat/export'
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Download, Pencil, Printer, Search, UserPlus } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useRole } from "@/hooks/useRole";
+import {
+  canDeleteRetreatRegistration,
+  canManageRetreatRegistrations,
+  canManageUsers,
+  canMutateRetreatPreinscriptions,
+  canRecordRetreatPayments,
+  canTransferRetreatToValientes,
+} from "@/lib/rbac/guards";
+import {
+  RETREAT_DASHBOARD_DESCRIPTION,
+  RETREAT_DASHBOARD_HEADING,
+  RETREAT_EVENT_KEY,
+} from "@/lib/retreat/constants";
+import { RetreatPreinscriptionCreate } from "@/components/retreat/RetreatPreinscriptionCreate";
+import { RetreatPreinscriptionEdit } from "@/components/retreat/RetreatPreinscriptionEdit";
+import {
+  buildReportRows,
+  exportRetreatToXLSX,
+  formatYYYYMMDD,
+} from "@/lib/retreat/export";
 import {
   isRetreatPaymentBlocked,
+  normalizeRetreatCostInput,
   parsePositiveTotal,
   remainingBalance,
   retreatStatusLabel,
   sumPaidByRegistration,
   type RetreatStatus,
-} from '@/lib/retreat/payments'
+} from "@/lib/retreat/payments";
 import {
   RETREAT_REGISTRATIONS_SELECT,
   buildSearchOrFilter,
   computeRowAbonos,
   getPaginationRange,
-} from '@/lib/retreat/queries'
-import { getRetreatTotalCost, setRetreatTotalCost } from '@/lib/settings/app-settings'
-import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+} from "@/lib/retreat/queries";
+import {
+  getRetreatTotalCost,
+  setRetreatTotalCost,
+} from "@/lib/settings/app-settings";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 interface RetreatRegistrationRow {
-  id: string
-  name: string
-  email: string
-  phone: string
-  birthday: string | null
-  is_minor: boolean
-  legal_rep_name: string | null
-  status: RetreatStatus
-  created_at: string
-  transferred_at: string | null
-  transferred_member_id: string | null
-  member_id: string | null
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  birthday: string | null;
+  is_minor: boolean;
+  legal_rep_name: string | null;
+  status: RetreatStatus;
+  created_at: string;
+  transferred_at: string | null;
+  transferred_member_id: string | null;
+  member_id: string | null;
+  has_whatsapp: boolean;
+  whatsapp_number: string | null;
+  has_medical_conditions: boolean;
+  medical_conditions: string | null;
+  medical_medications: string | null;
+  medical_dosage: string | null;
 }
 
 interface RetreatPaymentRow {
-  registration_id: string
-  amount: number | string
-  created_at: string
+  registration_id: string;
+  amount: number | string;
+  created_at: string;
 }
 
 function isRetreatStatus(value: string): value is RetreatStatus {
-  return value === 'preinscrito' || value === 'pagos_parciales' || value === 'inscrito'
+  return (
+    value === "preinscrito" ||
+    value === "pagos_parciales" ||
+    value === "inscrito"
+  );
 }
 
-function statusBadgeVariant(status: RetreatStatus): 'outline' | 'secondary' | 'default' {
+function statusBadgeVariant(
+  status: RetreatStatus,
+): "outline" | "secondary" | "default" {
   switch (status) {
-    case 'preinscrito':
-      return 'outline'
-    case 'pagos_parciales':
-      return 'secondary'
-    case 'inscrito':
-      return 'default'
+    case "preinscrito":
+      return "outline";
+    case "pagos_parciales":
+      return "secondary";
+    case "inscrito":
+      return "default";
     default: {
-      const exhaustive: never = status
-      return exhaustive
+      const exhaustive: never = status;
+      return exhaustive;
     }
   }
 }
 
 function formatAmount(value: number): string {
-  return value.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return value.toLocaleString("es-CO", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function useDebouncedValue<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value)
+  const [debounced, setDebounced] = useState(value);
   useEffect(() => {
-    const id = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(id)
-  }, [value, delay])
-  return debounced
+    const id = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(id);
+  }, [value, delay]);
+  return debounced;
 }
 
 function countPaidByRegistration(
   payments: Array<{ registration_id: string }>,
 ): Map<string, number> {
-  const counts = new Map<string, number>()
+  const counts = new Map<string, number>();
   for (const payment of payments) {
-    counts.set(payment.registration_id, (counts.get(payment.registration_id) ?? 0) + 1)
+    counts.set(
+      payment.registration_id,
+      (counts.get(payment.registration_id) ?? 0) + 1,
+    );
   }
-  return counts
+  return counts;
 }
 
-type DeleteMode = 'both' | 'payments-only' | 'registration-only'
+type DeleteMode = "both" | "payments-only" | "registration-only";
 
 function deleteSuccessToast(mode: DeleteMode): string {
   switch (mode) {
-    case 'both':
-      return 'Preinscripción y pagos eliminados'
-    case 'payments-only':
-      return 'Pagos eliminados, preinscripción conservada'
-    case 'registration-only':
-      return 'Preinscripción eliminada'
+    case "both":
+      return "Preinscripción y pagos eliminados";
+    case "payments-only":
+      return "Pagos eliminados, preinscripción conservada";
+    case "registration-only":
+      return "Preinscripción eliminada";
   }
 }
 
 export default function RetreatRegistrationsPage() {
-  const { role, loading } = useRole()
-  const [registrations, setRegistrations] = useState<RetreatRegistrationRow[]>([])
-  const [payments, setPayments] = useState<RetreatPaymentRow[]>([])
-  const [paidByRegistration, setPaidByRegistration] = useState<Map<string, number>>(new Map())
-  const [storedTotal, setStoredTotal] = useState<string | null>(null)
-  const [costDraft, setCostDraft] = useState('')
-  const [amountDrafts, setAmountDrafts] = useState<Record<string, string>>({})
-  const [savingPaymentId, setSavingPaymentId] = useState<string | null>(null)
-  const [savingCost, setSavingCost] = useState(false)
-  const [tab, setTab] = useState<'todos' | 'preinscrito' | 'inscrito'>('todos')
-  const [search, setSearch] = useState('')
-  const searchDebounced = useDebouncedValue(search, 300)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
-  const [totalCount, setTotalCount] = useState(0)
-  const [loadingData, setLoadingData] = useState(false)
-  const [transferTarget, setTransferTarget] = useState<RetreatRegistrationRow | null>(null)
-  const [transferConsent, setTransferConsent] = useState(false)
-  const [transferDup, setTransferDup] = useState<{ id: string; name: string } | null>(null)
-  const [transferring, setTransferring] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<RetreatRegistrationRow | null>(null)
-  const [deleteMode, setDeleteMode] = useState<DeleteMode>('both')
-  const [deleteConfirmed, setDeleteConfirmed] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+  const { role, loading } = useRole();
+  const [registrations, setRegistrations] = useState<RetreatRegistrationRow[]>(
+    [],
+  );
+  const [payments, setPayments] = useState<RetreatPaymentRow[]>([]);
+  const [paidByRegistration, setPaidByRegistration] = useState<
+    Map<string, number>
+  >(new Map());
+  const [storedTotal, setStoredTotal] = useState<string | null>(null);
+  const [costDraft, setCostDraft] = useState("");
+  const [amountDrafts, setAmountDrafts] = useState<Record<string, string>>({});
+  const [savingPaymentId, setSavingPaymentId] = useState<string | null>(null);
+  const [savingCost, setSavingCost] = useState(false);
+  const [tab, setTab] = useState<"todos" | "preinscrito" | "inscrito">("todos");
+  const [search, setSearch] = useState("");
+  const searchDebounced = useDebouncedValue(search, 300);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loadingData, setLoadingData] = useState(false);
+  const [transferTarget, setTransferTarget] =
+    useState<RetreatRegistrationRow | null>(null);
+  const [transferConsent, setTransferConsent] = useState(false);
+  const [transferDup, setTransferDup] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [transferring, setTransferring] = useState(false);
+  const [editTarget, setEditTarget] = useState<RetreatRegistrationRow | null>(
+    null,
+  );
+  const [deleteTarget, setDeleteTarget] =
+    useState<RetreatRegistrationRow | null>(null);
+  const [deleteMode, setDeleteMode] = useState<DeleteMode>("both");
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [paymentCountsByRegistration, setPaymentCountsByRegistration] =
-    useState<Map<string, number>>(new Map())
-  const [loadingExport, setLoadingExport] = useState(false)
-  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
-  const [hasSession, setHasSession] = useState(true)
-  const router = useRouter()
+    useState<Map<string, number>>(new Map());
+  const [loadingExport, setLoadingExport] = useState(false);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true,
+  );
+  const [hasSession, setHasSession] = useState(true);
+  const router = useRouter();
 
   const loadData = useCallback(async () => {
-    const supabase = createClient()
-    setLoadingData(true)
+    const supabase = createClient();
+    setLoadingData(true);
     try {
-      const { from, to } = getPaginationRange(page, pageSize)
+      const { from, to } = getPaginationRange(page, pageSize);
       let query = supabase
-        .from('retreat_registrations')
-        .select(RETREAT_REGISTRATIONS_SELECT, { count: 'exact' })
-        .eq('event_key', RETREAT_EVENT_KEY)
-        .order('name', { ascending: true })
-        .range(from, to)
-      if (tab !== 'todos') query = query.eq('status', tab)
-      const searchFilter = buildSearchOrFilter(searchDebounced)
-      if (searchFilter) query = query.or(searchFilter)
+        .from("retreat_registrations")
+        .select(RETREAT_REGISTRATIONS_SELECT, { count: "exact" })
+        .eq("event_key", RETREAT_EVENT_KEY)
+        .order("name", { ascending: true })
+        .range(from, to);
+      if (tab !== "todos") query = query.eq("status", tab);
+      const searchFilter = buildSearchOrFilter(searchDebounced);
+      if (searchFilter) query = query.or(searchFilter);
       const [result, total] = await Promise.all([
-        query as unknown as Promise<{ data: unknown[]; count: number | null; error: unknown }>,
+        // SAFETY: supabase query builder is thenable but untyped for count+select; resolved shape matches data/count/error
+        query as unknown as Promise<{
+          data: unknown[];
+          count: number | null;
+          error: unknown;
+        }>,
         getRetreatTotalCost(),
-      ])
+      ]);
       const regs = (result.data ?? []).filter(
         (row): row is RetreatRegistrationRow =>
-          typeof (row as { status: unknown }).status === 'string' &&
+          typeof (row as { status: unknown }).status === "string" &&
           isRetreatStatus((row as { status: string }).status),
-      ) as RetreatRegistrationRow[]
-      setRegistrations(regs)
-      setTotalCount(result.count ?? 0)
-      setStoredTotal(total)
-      setCostDraft(total ?? '')
-      const ids = regs.map((r) => r.id)
+      ) as RetreatRegistrationRow[];
+      setRegistrations(regs);
+      setTotalCount(result.count ?? 0);
+      setStoredTotal(total);
+      setCostDraft(total ?? "");
+      const ids = regs.map((r) => r.id);
       if (ids.length === 0) {
-        setPayments([])
-        setPaidByRegistration(new Map())
-        setPaymentCountsByRegistration(new Map())
-        return
+        setPayments([]);
+        setPaidByRegistration(new Map());
+        setPaymentCountsByRegistration(new Map());
+        return;
       }
       const { data: pays } = (await supabase
-        .from('retreat_payments')
-        .select('registration_id,amount,created_at')
-        .in('registration_id', ids)
-        .order('created_at')) as { data: RetreatPaymentRow[] | null }
-      const paymentsArr = (pays ?? []) as RetreatPaymentRow[]
-      setPayments(paymentsArr)
-      setPaidByRegistration(sumPaidByRegistration(paymentsArr))
-      setPaymentCountsByRegistration(countPaidByRegistration(paymentsArr))
+        .from("retreat_payments")
+        .select("registration_id,amount,created_at")
+        .in("registration_id", ids)
+        .order("created_at")) as { data: RetreatPaymentRow[] | null };
+      const paymentsArr = (pays ?? []) as RetreatPaymentRow[];
+      setPayments(paymentsArr);
+      setPaidByRegistration(sumPaidByRegistration(paymentsArr));
+      setPaymentCountsByRegistration(countPaidByRegistration(paymentsArr));
     } finally {
-      setLoadingData(false)
+      setLoadingData(false);
     }
-  }, [page, pageSize, tab, searchDebounced])
+  }, [page, pageSize, tab, searchDebounced]);
 
   useEffect(() => {
-    if (!role || !canManageRetreatRegistrations(role)) return
-    void loadData()
-  }, [role, loadData])
+    if (!role || !canManageRetreatRegistrations(role)) return;
+    void loadData();
+  }, [role, loadData]);
 
   useEffect(() => {
-    setPage(1)
-  }, [tab, searchDebounced, pageSize])
+    setPage(1);
+  }, [tab, searchDebounced, pageSize]);
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(navigator.onLine)
-    const handleOffline = () => setIsOnline(false)
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
+    const handleOnline = () => setIsOnline(navigator.onLine);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
     return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [])
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
-    const supabase = createClient()
-    void supabase.auth.getSession().then(({ data }) => setHasSession(!!data.session))
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setHasSession(!!session))
-    return () => sub.subscription.unsubscribe()
-  }, [])
+    const supabase = createClient();
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => setHasSession(!!data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
+      setHasSession(!!session),
+    );
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   // Duplicate pre-check when the transfer dialog opens: email exact match OR
   // phone containing the digits of the registration phone. The transfer RPC
   // remains the authoritative validation; query errors surface no warning.
   useEffect(() => {
     if (!transferTarget) {
-      setTransferDup(null)
-      return
+      setTransferDup(null);
+      return;
     }
-    const email = (transferTarget.email ?? '').trim()
-    const digits = (transferTarget.phone ?? '').replace(/\D/g, '')
-    const ors: string[] = []
-    if (email) ors.push(`email.eq.${email}`)
-    if (digits) ors.push(`phone.like.%${digits}%`)
+    const email = (transferTarget.email ?? "").trim();
+    const digits = (transferTarget.phone ?? "").replace(/\D/g, "");
+    const ors: string[] = [];
+    if (email) ors.push(`email.eq.${email}`);
+    if (digits) ors.push(`phone.like.%${digits}%`);
     if (ors.length === 0) {
-      setTransferDup(null)
-      return
+      setTransferDup(null);
+      return;
     }
-    let cancelled = false
-    const supabase = createClient()
-    void (supabase
-      .from('members')
-      .select('id,name')
-      .or(ors.join(','))
-      .limit(1) as unknown as Promise<{
-        data: Array<{ id: string; name: string }> | null
-        error: unknown
-      }>).then(({ data }) => {
-        if (!cancelled) setTransferDup(data && data.length > 0 ? data[0] : null)
-      })
+    let cancelled = false;
+    const supabase = createClient();
+    // SAFETY: supabase postgrest builder narrowed to typed select promise; or-filter returns id/name rows
+    void (
+      supabase
+        .from("members")
+        .select("id,name")
+        .or(ors.join(","))
+        .limit(1) as unknown as Promise<{
+        data: Array<{ id: string; name: string }> | null;
+        error: unknown;
+      }>
+    ).then(({ data }) => {
+      if (!cancelled) setTransferDup(data && data.length > 0 ? data[0] : null);
+    });
     return () => {
-      cancelled = true
-    }
-  }, [transferTarget])
+      cancelled = true;
+    };
+  }, [transferTarget]);
 
-  if (loading) return null
+  if (loading) return null;
 
   if (!role || !canManageRetreatRegistrations(role)) {
     return (
       <div className="flex h-48 items-center justify-center text-muted-foreground">
         No tiene permisos para acceder a esta sección
       </div>
-    )
+    );
   }
 
-  const parsedTotal = parsePositiveTotal(storedTotal)
-  const paymentsBlocked = isRetreatPaymentBlocked(storedTotal)
-  const canMutate = !!role && canMutateRetreatPreinscriptions(role)
-  const canRecordPayments = !!role && canRecordRetreatPayments(role)
-  const canDelete = canDeleteRetreatRegistration(role)
-  const mutationColSpan = canMutate ? 11 : 8
-  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
-  const fromDisplay = totalCount === 0 ? 0 : (page - 1) * pageSize + 1
-  const toDisplay = Math.min(page * pageSize, totalCount)
+  const parsedTotal = parsePositiveTotal(storedTotal);
+  const paymentsBlocked = isRetreatPaymentBlocked(storedTotal);
+  const canMutate = !!role && canMutateRetreatPreinscriptions(role);
+  const canRecordPayments = !!role && canRecordRetreatPayments(role);
+  const canDelete = canDeleteRetreatRegistration(role);
+  const mutationColSpan = canMutate ? 12 : 9;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const fromDisplay = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const toDisplay = Math.min(page * pageSize, totalCount);
 
   async function handleSaveCost() {
-    setSavingCost(true)
+    const normalized = normalizeRetreatCostInput(costDraft);
+    if (parsePositiveTotal(normalized) === null) {
+      toast.error("El costo debe ser un número positivo");
+      return;
+    }
+    setSavingCost(true);
     try {
-      await setRetreatTotalCost(costDraft)
-      toast.success('Costo total del retiro actualizado')
-      await loadData()
+      await setRetreatTotalCost(normalized);
+      toast.success("Costo total del retiro actualizado");
+      await loadData();
     } catch {
-      toast.error('Error al guardar el costo total')
+      toast.error("Error al guardar el costo total");
     } finally {
-      setSavingCost(false)
+      setSavingCost(false);
     }
   }
 
-  async function recordPayment(registrationId: string, amount: number): Promise<boolean> {
+  async function recordPayment(
+    registrationId: string,
+    amount: number,
+  ): Promise<boolean> {
     // Defense in depth: the UI hides the payment cell for roles without
     // payment permission; this mirrors the retreat_payments RLS policies.
-    if (!role || !canRecordRetreatPayments(role)) return false
+    if (!role || !canRecordRetreatPayments(role)) return false;
     if (!(amount > 0)) {
-      toast.error('El monto de la cuota debe ser mayor que cero')
-      return false
+      toast.error("El monto de la cuota debe ser mayor que cero");
+      return false;
     }
-    const supabase = createClient()
+    const supabase = createClient();
     const {
       data: { session },
-    } = await supabase.auth.getSession()
+    } = await supabase.auth.getSession();
     if (!session) {
-      toast.error('No hay una sesión activa')
-      return false
+      toast.error("No hay una sesión activa");
+      return false;
     }
-    setSavingPaymentId(registrationId)
+    setSavingPaymentId(registrationId);
     try {
-      const { error } = await supabase.from('retreat_payments').insert({
+      const { error } = await supabase.from("retreat_payments").insert({
         registration_id: registrationId,
         amount,
         recorded_by: session.user.id,
-      })
-      if (error) throw error
-      await loadData()
-      return true
+      });
+      if (error) throw error;
+      await loadData();
+      return true;
     } catch (err) {
       const msg =
         err instanceof Error
           ? err.message
-          : ((err as { message?: string } | null)?.message ?? String(err))
-      if (msg.includes('already fully paid')) {
-        toast.error('Ya está pagado en su totalidad — no se permiten más abonos')
-      } else if (msg.includes('exceeds remaining balance')) {
-        toast.error('El abono excede el saldo pendiente')
+          : ((err as { message?: string } | null)?.message ?? String(err));
+      if (msg.includes("already fully paid")) {
+        toast.error(
+          "Ya está pagado en su totalidad — no se permiten más abonos",
+        );
+      } else if (msg.includes("exceeds remaining balance")) {
+        toast.error("El abono excede el saldo pendiente");
       } else {
-        toast.error('Error al registrar el pago')
+        toast.error("Error al registrar el pago");
       }
-      return false
+      return false;
     } finally {
-      setSavingPaymentId(null)
+      setSavingPaymentId(null);
     }
   }
 
   async function handleRecordPayment(registrationId: string) {
     // Belt & braces with the guard trigger: fully paid rows take no more abonos.
-    const target = registrations.find((r) => r.id === registrationId)
-    if (target?.status === 'inscrito') return
-    const ok = await recordPayment(registrationId, Number(amountDrafts[registrationId]))
+    const target = registrations.find((r) => r.id === registrationId);
+    if (target?.status === "inscrito") return;
+    const ok = await recordPayment(
+      registrationId,
+      Number(amountDrafts[registrationId]),
+    );
     if (ok) {
-      toast.success('Pago registrado')
-      setAmountDrafts((current) => ({ ...current, [registrationId]: '' }))
+      toast.success("Pago registrado");
+      setAmountDrafts((current) => ({ ...current, [registrationId]: "" }));
     }
   }
 
   async function handleCompleteRemaining(registrationId: string) {
-    const target = registrations.find((r) => r.id === registrationId)
-    if (!target || target.status === 'inscrito') return
-    const remaining = remainingBalance(parsedTotal, paidByRegistration.get(registrationId) ?? 0)
-    if (remaining === null || remaining <= 0) return
-    const ok = await recordPayment(registrationId, remaining)
+    const target = registrations.find((r) => r.id === registrationId);
+    if (!target || target.status === "inscrito") return;
+    const remaining = remainingBalance(
+      parsedTotal,
+      paidByRegistration.get(registrationId) ?? 0,
+    );
+    if (remaining === null || remaining <= 0) return;
+    const ok = await recordPayment(registrationId, remaining);
     if (ok) {
-      toast.success('Saldo completado')
+      toast.success("Saldo completado");
     }
   }
 
   function openDeleteDialog(registration: RetreatRegistrationRow) {
-    const sumPaid = paidByRegistration.get(registration.id) ?? 0
-    setDeleteTarget(registration)
-    setDeleteMode(sumPaid > 0 ? 'both' : 'registration-only')
-    setDeleteConfirmed(false)
+    const sumPaid = paidByRegistration.get(registration.id) ?? 0;
+    setDeleteTarget(registration);
+    setDeleteMode(sumPaid > 0 ? "both" : "registration-only");
+    setDeleteConfirmed(false);
   }
 
   function closeDeleteDialog() {
-    if (deleting) return
-    setDeleteTarget(null)
-    setDeleteConfirmed(false)
-    setDeleting(false)
+    if (deleting) return;
+    setDeleteTarget(null);
+    setDeleteConfirmed(false);
+    setDeleting(false);
   }
 
   async function handleConfirmDelete() {
-    if (!deleteTarget || deleting) return
-    if (deleteMode === 'both' && !deleteConfirmed) return
-    setDeleting(true)
-    const supabase = createClient()
+    if (!deleteTarget || deleting) return;
+    if (deleteMode === "both" && !deleteConfirmed) return;
+    setDeleting(true);
+    const supabase = createClient();
     // Tracks which DELETE failed so the catch reports the exact toast (design §3).
-    let failedStep: 'payments' | 'registration' = 'payments'
+    let failedStep: "payments" | "registration" = "payments";
     try {
-      if (deleteMode === 'both' || deleteMode === 'payments-only') {
-        const expected = paymentCountsByRegistration.get(deleteTarget.id) ?? 0
+      if (deleteMode === "both" || deleteMode === "payments-only") {
+        const expected = paymentCountsByRegistration.get(deleteTarget.id) ?? 0;
         const { data, error } = await supabase
-          .from('retreat_payments')
+          .from("retreat_payments")
           .delete()
-          .eq('registration_id', deleteTarget.id)
-          .select('id')
-        if (error) throw error
+          .eq("registration_id", deleteTarget.id)
+          .select("id");
+        if (error) throw error;
         if (!data || data.length === 0) {
-          toast.error('No tiene permisos para eliminar estos pagos')
-          return
+          toast.error("No tiene permisos para eliminar estos pagos");
+          return;
         }
         if (expected > 0 && data.length !== expected) {
           // Borrado parcial (p. ej. pagos concurrentes): recargar y reportar.
-          await loadData()
-          toast.error('El borrado fue parcial, revise los pagos restantes')
-          return
+          await loadData();
+          toast.error("El borrado fue parcial, revise los pagos restantes");
+          return;
         }
       }
-      if (deleteMode === 'both' || deleteMode === 'registration-only') {
-        failedStep = 'registration'
+      if (deleteMode === "both" || deleteMode === "registration-only") {
+        failedStep = "registration";
         const { data, error } = await supabase
-          .from('retreat_registrations')
+          .from("retreat_registrations")
           .delete()
-          .eq('id', deleteTarget.id)
-          .select('id')
-        if (error) throw error
+          .eq("id", deleteTarget.id)
+          .select("id");
+        if (error) throw error;
         if (!data || data.length === 0) {
           // RLS denegó, o (c) con pagos concurrentes bloqueado por FK→error arriba.
-          toast.error('No tiene permisos para eliminar esta preinscripción')
-          return
+          toast.error("No tiene permisos para eliminar esta preinscripción");
+          return;
         }
       }
-      toast.success(deleteSuccessToast(deleteMode))
-      setDeleteTarget(null) // cierra el diálogo
-      await loadData()
+      toast.success(deleteSuccessToast(deleteMode));
+      setDeleteTarget(null); // cierra el diálogo
+      await loadData();
     } catch {
       toast.error(
-        failedStep === 'payments'
-          ? 'Error al eliminar los pagos'
-          : 'Error al eliminar la preinscripción',
-      )
+        failedStep === "payments"
+          ? "Error al eliminar los pagos"
+          : "Error al eliminar la preinscripción",
+      );
     } finally {
-      setDeleting(false)
+      setDeleting(false);
     }
   }
 
-      async function handleTransfer() {
-        if (!transferTarget || !transferConsent) return
-        setTransferring(true)
-        try {
-          const supabase = createClient()
-          const { data, error } = (await supabase.rpc('transfer_retreat_to_valientes', {
-            p_registration_id: transferTarget.id,
-          })) as { data: string | null; error: { message: string; code?: string } | null }
-          if (error) {
-            const msg = error.message ?? ''
-            const code = (error as { code?: string }).code ?? ''
-            if (msg.includes('already_transferred') || code === '23505' && msg.includes('transferred')) {
-              toast.error('Ya fue transferido', { action: { label: 'Ver miembro', onClick: () => router.push('/members') } })
-            } else if (msg.includes('already_member') || code === '23505') {
-              toast.error('Ya existe un miembro con ese email/teléfono — Ver miembro', { action: { label: 'Ver miembro', onClick: () => router.push('/members') } })
-            } else if (msg.includes('not_inscrito') || code === '23514') {
-              toast.error('La persona aún no está Inscrita (debe completar el pago total)')
-            } else if (msg.includes('missing_total')) {
-              toast.error('Costo total del retiro no configurado')
-            } else if (code === '42501') {
-              toast.error('No tiene permisos para transferir')
-            } else {
-              toast.error(`Error al transferir: ${msg}`)
-            }
-            return
-          }
-          toast.success('Transferido a Valientes', { action: { label: 'Ver miembro', onClick: () => router.push(`/members?highlight=${data}`) } })
-          setTransferTarget(null)
-          setTransferConsent(false)
-          await loadData()
-        } finally {
-          setTransferring(false)
+  async function handleTransfer() {
+    if (!transferTarget || !transferConsent) return;
+    setTransferring(true);
+    try {
+      const supabase = createClient();
+      const { data, error } = (await supabase.rpc(
+        "transfer_retreat_to_valientes",
+        {
+          p_registration_id: transferTarget.id,
+        },
+      )) as {
+        data: string | null;
+        error: { message: string; code?: string } | null;
+      };
+      if (error) {
+        const msg = error.message ?? "";
+        const code = (error as { code?: string }).code ?? "";
+        if (
+          msg.includes("already_transferred") ||
+          (code === "23505" && msg.includes("transferred"))
+        ) {
+          toast.error("Ya fue transferido", {
+            action: {
+              label: "Ver miembro",
+              onClick: () => router.push("/members"),
+            },
+          });
+        } else if (msg.includes("already_member") || code === "23505") {
+          toast.error(
+            "Ya existe un miembro con ese email/teléfono — Ver miembro",
+            {
+              action: {
+                label: "Ver miembro",
+                onClick: () => router.push("/members"),
+              },
+            },
+          );
+        } else if (msg.includes("not_inscrito") || code === "23514") {
+          toast.error(
+            "La persona aún no está Inscrita (debe completar el pago total)",
+          );
+        } else if (msg.includes("missing_total")) {
+          toast.error("Costo total del retiro no configurado");
+        } else if (code === "42501") {
+          toast.error("No tiene permisos para transferir");
+        } else {
+          toast.error(`Error al transferir: ${msg}`);
         }
+        return;
       }
+      toast.success("Transferido a Valientes", {
+        action: {
+          label: "Ver miembro",
+          onClick: () => router.push(`/members?highlight=${data}`),
+        },
+      });
+      setTransferTarget(null);
+      setTransferConsent(false);
+      await loadData();
+    } finally {
+      setTransferring(false);
+    }
+  }
 
-      async function fetchAllRetreatRows(inscritoOnly: boolean): Promise<RetreatRegistrationRow[]> {
-        const supabase = createClient()
-        const all: RetreatRegistrationRow[] = []
-        let offset = 0
-        const chunk = 1000
-        while (true) {
-          let q = supabase
-            .from('retreat_registrations')
-            .select(RETREAT_REGISTRATIONS_SELECT)
-            .eq('event_key', RETREAT_EVENT_KEY)
-            .order('name', { ascending: true })
-            .range(offset, offset + chunk - 1)
-          if (inscritoOnly) q = q.eq('status', 'inscrito')
-          else if (tab !== 'todos') q = q.eq('status', tab)
-          const sf = buildSearchOrFilter(searchDebounced)
-          if (sf && !inscritoOnly) q = q.or(sf)
-          const { data, error } = (await q) as { data: RetreatRegistrationRow[] | null; error: unknown }
-          if (error) throw error
-          const rows = (data ?? []) as RetreatRegistrationRow[]
-          all.push(...rows)
-          if (rows.length < chunk) break
-          offset += chunk
-        }
-        return all
-      }
+  async function fetchAllRetreatRows(
+    inscritoOnly: boolean,
+  ): Promise<RetreatRegistrationRow[]> {
+    const supabase = createClient();
+    const all: RetreatRegistrationRow[] = [];
+    let offset = 0;
+    const chunk = 1000;
+    while (true) {
+      let q = supabase
+        .from("retreat_registrations")
+        .select(RETREAT_REGISTRATIONS_SELECT)
+        .eq("event_key", RETREAT_EVENT_KEY)
+        .order("name", { ascending: true })
+        .range(offset, offset + chunk - 1);
+      if (inscritoOnly) q = q.eq("status", "inscrito");
+      else if (tab !== "todos") q = q.eq("status", tab);
+      const sf = buildSearchOrFilter(searchDebounced);
+      if (sf && !inscritoOnly) q = q.or(sf);
+      const { data, error } = (await q) as {
+        data: RetreatRegistrationRow[] | null;
+        error: unknown;
+      };
+      if (error) throw error;
+      const rows = (data ?? []) as RetreatRegistrationRow[];
+      all.push(...rows);
+      if (rows.length < chunk) break;
+      offset += chunk;
+    }
+    return all;
+  }
 
-      async function fetchPaymentsChunked(ids: string[]): Promise<RetreatPaymentRow[]> {
-        if (ids.length === 0) return []
-        const supabase = createClient()
-        const all: RetreatPaymentRow[] = []
-        const batchSize = 900
-        for (let i = 0; i < ids.length; i += batchSize) {
-          const batch = ids.slice(i, i + batchSize)
-          const { data, error } = (await supabase
-            .from('retreat_payments')
-            .select('registration_id,amount,created_at')
-            .in('registration_id', batch)) as { data: RetreatPaymentRow[] | null; error: unknown }
-          if (error) throw error
-          all.push(...((data ?? []) as RetreatPaymentRow[]))
-        }
-        return all
-      }
+  async function fetchPaymentsChunked(
+    ids: string[],
+  ): Promise<RetreatPaymentRow[]> {
+    if (ids.length === 0) return [];
+    const supabase = createClient();
+    const all: RetreatPaymentRow[] = [];
+    const batchSize = 900;
+    for (let i = 0; i < ids.length; i += batchSize) {
+      const batch = ids.slice(i, i + batchSize);
+      const { data, error } = (await supabase
+        .from("retreat_payments")
+        .select("registration_id,amount,created_at")
+        .in("registration_id", batch)) as {
+        data: RetreatPaymentRow[] | null;
+        error: unknown;
+      };
+      if (error) throw error;
+      all.push(...((data ?? []) as RetreatPaymentRow[]));
+    }
+    return all;
+  }
 
-      async function handleExport(inscritoOnly: boolean) {
-        if (!isOnline || !hasSession) {
-          toast.error('Requiere conexión')
-          return
-        }
-        setLoadingExport(true)
-        try {
-          const regs = await fetchAllRetreatRows(inscritoOnly)
-          const ids = regs.map((r) => r.id)
-          const pays = await fetchPaymentsChunked(ids)
-          const byId = new Map<string, Array<{ amount: number | string; created_at: string }>>()
-          for (const p of pays) {
-            const arr = byId.get(p.registration_id) ?? []
-            arr.push({ amount: p.amount, created_at: p.created_at })
-            byId.set(p.registration_id, arr)
-          }
-          const rows = buildReportRows(
-            regs.map((r) => ({ name: r.name, email: r.email, phone: r.phone, birthday: r.birthday, is_minor: r.is_minor, legal_rep_name: r.legal_rep_name, status: r.status, transferred_at: r.transferred_at })),
-            byId,
-            storedTotal,
-            ids,
-          )
-          const filename = inscritoOnly ? `retiro-inscritos-${formatYYYYMMDD(new Date())}` : `retiro-estado-pago-${formatYYYYMMDD(new Date())}`
-          exportRetreatToXLSX(rows, filename)
-          toast.success(`Reporte ${inscritoOnly ? 'inscritos' : 'estado de pago'} generado`)
-        } catch {
-          toast.error('Error al generar el reporte')
-        } finally {
-          setLoadingExport(false)
-        }
+  async function handleExport(inscritoOnly: boolean) {
+    if (!isOnline || !hasSession) {
+      toast.error("Requiere conexión");
+      return;
+    }
+    setLoadingExport(true);
+    try {
+      const regs = await fetchAllRetreatRows(inscritoOnly);
+      const ids = regs.map((r) => r.id);
+      const pays = await fetchPaymentsChunked(ids);
+      const byId = new Map<
+        string,
+        Array<{ amount: number | string; created_at: string }>
+      >();
+      for (const p of pays) {
+        const arr = byId.get(p.registration_id) ?? [];
+        arr.push({ amount: p.amount, created_at: p.created_at });
+        byId.set(p.registration_id, arr);
       }
+      const rows = buildReportRows(
+        regs.map((r) => ({
+          name: r.name,
+          email: r.email,
+          phone: r.phone,
+          birthday: r.birthday,
+          is_minor: r.is_minor,
+          legal_rep_name: r.legal_rep_name,
+          status: r.status,
+          transferred_at: r.transferred_at,
+          has_medical_conditions: r.has_medical_conditions,
+          medical_conditions: r.medical_conditions,
+          medical_medications: r.medical_medications,
+          medical_dosage: r.medical_dosage,
+        })),
+        byId,
+        storedTotal,
+        ids,
+      );
+      const filename = inscritoOnly
+        ? `retiro-inscritos-${formatYYYYMMDD(new Date())}`
+        : `retiro-estado-pago-${formatYYYYMMDD(new Date())}`;
+      exportRetreatToXLSX(rows, filename);
+      toast.success(
+        `Reporte ${inscritoOnly ? "inscritos" : "estado de pago"} generado`,
+      );
+    } catch {
+      toast.error("Error al generar el reporte");
+    } finally {
+      setLoadingExport(false);
+    }
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="w-full max-w-full min-w-0 space-y-6 overflow-x-clip">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Preinscripciones al retiro</h1>
-        <p className="text-muted-foreground">Consulte las preinscripciones y registre cuotas consecutivas</p>
+        <h1 className="text-2xl font-bold tracking-tight">
+          {RETREAT_DASHBOARD_HEADING}
+        </h1>
+        <p className="text-muted-foreground">{RETREAT_DASHBOARD_DESCRIPTION}</p>
       </div>
 
       {canManageUsers(role) && (
@@ -543,19 +710,23 @@ export default function RetreatRegistrationsPage() {
           <CardHeader>
             <CardTitle>Costo total del retiro</CardTitle>
             <CardDescription>
-              Solo el super administrador puede configurar el valor. No se usa un precio por defecto.
+              Solo el super administrador puede configurar el valor. No se usa
+              un precio por defecto.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             <Label htmlFor="retreatTotalCost">Costo total (COP)</Label>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 id="retreatTotalCost"
                 value={costDraft}
                 onChange={(event) => setCostDraft(event.target.value)}
                 placeholder="Ejemplo: 150000"
               />
-              <Button onClick={() => void handleSaveCost()} disabled={savingCost}>
+              <Button
+                onClick={() => void handleSaveCost()}
+                disabled={savingCost}
+              >
                 Guardar
               </Button>
             </div>
@@ -565,57 +736,80 @@ export default function RetreatRegistrationsPage() {
 
       {paymentsBlocked && (
         <p className="text-sm text-muted-foreground">
-          Los pagos están bloqueados hasta que un super administrador configure el costo total del retiro
+          Los pagos están bloqueados hasta que un super administrador configure
+          el costo total del retiro
         </p>
       )}
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="space-y-4">
-                <TabsList>
-                  <TabsTrigger value="todos" onClick={() => setTab('todos')}>
-                    Todos
-                  </TabsTrigger>
-                  <TabsTrigger value="preinscrito" onClick={() => setTab('preinscrito')}>
-                    Preinscritos
-                  </TabsTrigger>
-                  <TabsTrigger value="inscrito" onClick={() => setTab('inscrito')}>
-                    Inscritos
-                  </TabsTrigger>
-                </TabsList>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="relative flex-1 max-w-sm">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      placeholder="Buscar por nombre, email o teléfono…"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="max-w-sm pl-9"
-                    />
-                  </div>
-                  <Badge variant="outline">{totalCount} preinscripciones</Badge>
-                  <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-                    <SelectTrigger className="w-[100px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="20">20 / pág</SelectItem>
-                      <SelectItem value="50">50 / pág</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </Tabs>
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as typeof tab)}
+        className="space-y-4"
+      >
+        <TabsList>
+          <TabsTrigger value="todos" onClick={() => setTab("todos")}>
+            Todos
+          </TabsTrigger>
+          <TabsTrigger
+            value="preinscrito"
+            onClick={() => setTab("preinscrito")}
+          >
+            Preinscritos
+          </TabsTrigger>
+          <TabsTrigger value="inscrito" onClick={() => setTab("inscrito")}>
+            Inscritos
+          </TabsTrigger>
+        </TabsList>
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-3">
+          <div className="relative w-full min-w-0 flex-1 sm:max-w-sm">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nombre, email o teléfono…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full sm:max-w-sm pl-9"
+            />
+          </div>
+          <Badge variant="outline">{totalCount} preinscripciones</Badge>
+          <Select
+            value={String(pageSize)}
+            onValueChange={(v) => setPageSize(Number(v))}
+          >
+            <SelectTrigger className="w-[100px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="20">20 / pág</SelectItem>
+              <SelectItem value="50">50 / pág</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </Tabs>
 
       <div className="no-print flex flex-wrap gap-2">
-            {canMutate && (
-            <RetreatPreinscriptionCreate
-              disabled={!isOnline || !hasSession}
-              disabledTitle="Requiere conexión"
-              onSuccess={() => void loadData()}
-            />
-            )}
-            <Button variant="outline" size="sm" disabled={!isOnline || !hasSession || loadingExport} title={!isOnline || !hasSession ? 'Requiere conexión' : undefined} onClick={() => void handleExport(false)}>
+        {canMutate && (
+          <RetreatPreinscriptionCreate
+            disabled={!isOnline || !hasSession}
+            disabledTitle="Requiere conexión"
+            onSuccess={() => void loadData()}
+          />
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!isOnline || !hasSession || loadingExport}
+          title={!isOnline || !hasSession ? "Requiere conexión" : undefined}
+          onClick={() => void handleExport(false)}
+        >
           <Download className="mr-2 h-4 w-4" /> Exportar estado de pago
         </Button>
-        <Button variant="secondary" size="sm" disabled={!isOnline || !hasSession || loadingExport} title={!isOnline || !hasSession ? 'Requiere conexión' : undefined} onClick={() => void handleExport(true)}>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!isOnline || !hasSession || loadingExport}
+          title={!isOnline || !hasSession ? "Requiere conexión" : undefined}
+          onClick={() => void handleExport(true)}
+        >
           <Download className="mr-2 h-4 w-4" /> Exportar inscritos
         </Button>
         <Button variant="outline" size="sm" onClick={() => window.print()}>
@@ -623,37 +817,63 @@ export default function RetreatRegistrationsPage() {
         </Button>
       </div>
 
-      <div className="rounded-lg border">
+      <div className="w-full max-w-full overflow-hidden rounded-lg border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="sticky left-0 z-10 bg-background">Nombre</TableHead>
-                  <TableHead className="hidden sm:table-cell">Teléfono</TableHead>
-                  <TableHead className="hidden sm:table-cell">Estado</TableHead>
-                  <TableHead className="hidden md:table-cell">Email</TableHead>
-                  <TableHead className="whitespace-nowrap">Pagado</TableHead>
-                  <TableHead className="hidden md:table-cell whitespace-nowrap">Saldo</TableHead>
-                  <TableHead className="hidden lg:table-cell whitespace-nowrap">% Pagado</TableHead>
-                  <TableHead className="hidden lg:table-cell whitespace-nowrap">Último abono</TableHead>
-                  {canMutate && <TableHead className="w-56 md:w-64">Registrar pago</TableHead>}
-                  {canMutate && <TableHead className="hidden md:table-cell w-40">Transferir</TableHead>}
-                  {canDelete && <TableHead className="whitespace-nowrap">Acciones</TableHead>}
+              <TableHead className="sticky left-0 z-10 bg-background">
+                Nombre
+              </TableHead>
+              <TableHead className="hidden sm:table-cell">Teléfono</TableHead>
+              <TableHead className="hidden sm:table-cell">Estado</TableHead>
+              <TableHead className="hidden md:table-cell">Email</TableHead>
+              <TableHead className="whitespace-nowrap">Pagado</TableHead>
+              <TableHead className="hidden md:table-cell whitespace-nowrap">
+                Saldo
+              </TableHead>
+              <TableHead className="hidden lg:table-cell whitespace-nowrap">
+                % Pagado
+              </TableHead>
+              <TableHead className="hidden lg:table-cell whitespace-nowrap">
+                Último abono
+              </TableHead>
+              <TableHead className="hidden md:table-cell whitespace-nowrap">
+                Salud
+              </TableHead>
+              {canMutate && (
+                <TableHead className="w-56 md:w-64">Registrar pago</TableHead>
+              )}
+              {canMutate && (
+                <TableHead className="hidden md:table-cell w-40">
+                  Transferir
+                </TableHead>
+              )}
+              {canDelete && (
+                <TableHead className="whitespace-nowrap">Acciones</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
             {registrations.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={mutationColSpan} className="text-center text-muted-foreground">
+                <TableCell
+                  colSpan={mutationColSpan}
+                  className="text-center text-muted-foreground"
+                >
                   No hay preinscripciones registradas
                 </TableCell>
               </TableRow>
             ) : (
               registrations.map((registration) => {
-                const sumPaid = paidByRegistration.get(registration.id) ?? 0
-                const remaining = remainingBalance(parsedTotal, sumPaid)
-                const rowPayments = payments.filter((p) => p.registration_id === registration.id)
-                const abonos = computeRowAbonos(rowPayments, storedTotal)
-                const pct = parsedTotal ? Math.min(100, (sumPaid / parsedTotal) * 100) : 0
+                const sumPaid = paidByRegistration.get(registration.id) ?? 0;
+                const remaining = remainingBalance(parsedTotal, sumPaid);
+                const rowPayments = payments.filter(
+                  (p) => p.registration_id === registration.id,
+                );
+                const abonos = computeRowAbonos(rowPayments, storedTotal);
+                const pct = parsedTotal
+                  ? Math.min(100, (sumPaid / parsedTotal) * 100)
+                  : 0;
                 return (
                   <TableRow key={registration.id}>
                     <TableCell className="sticky left-0 z-10 bg-background font-medium">
@@ -662,280 +882,488 @@ export default function RetreatRegistrationsPage() {
                         <Badge
                           variant="secondary"
                           className="ml-2 bg-emerald-50 text-emerald-800"
-                          title={new Date(registration.transferred_at).toLocaleDateString('es-CO')}
+                          title={new Date(
+                            registration.transferred_at,
+                          ).toLocaleDateString("es-CO")}
                         >
                           Transferido ✓
                         </Badge>
                       )}
+                      {registration.has_medical_conditions && (
+                        <Badge
+                          variant="outline"
+                          className="ml-2 md:hidden"
+                          title={[
+                            registration.medical_conditions,
+                            registration.medical_medications,
+                            registration.medical_dosage,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        >
+                          Salud
+                        </Badge>
+                      )}
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell whitespace-nowrap">{registration.phone}</TableCell>
+                    <TableCell className="hidden sm:table-cell whitespace-nowrap">
+                      {registration.phone}
+                    </TableCell>
                     <TableCell className="hidden sm:table-cell">
                       <Badge variant={statusBadgeVariant(registration.status)}>
                         {retreatStatusLabel(registration.status)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell max-w-[200px] truncate">{registration.email}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatAmount(sumPaid)}</TableCell>
-                    <TableCell className="hidden md:table-cell whitespace-nowrap">{remaining === null ? '—' : formatAmount(remaining)}</TableCell>
-                    <TableCell className="hidden lg:table-cell whitespace-nowrap">{abonos.percent === null ? '—' : `${abonos.percent.toFixed(0)}%`}</TableCell>
+                    <TableCell className="hidden md:table-cell max-w-[200px] truncate">
+                      {registration.email}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {formatAmount(sumPaid)}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell whitespace-nowrap">
+                      {remaining === null ? "—" : formatAmount(remaining)}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell whitespace-nowrap">
+                      {abonos.percent === null
+                        ? "—"
+                        : `${abonos.percent.toFixed(0)}%`}
+                    </TableCell>
                     <TableCell className="hidden lg:table-cell whitespace-nowrap">
                       {abonos.last
-                        ? new Date(abonos.last).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                        : '—'}
+                        ? new Date(abonos.last).toLocaleDateString("es-CO", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })
+                        : "—"}
                     </TableCell>
-                        {canMutate && (
-                        <TableCell className="w-56 md:w-64">
-                          {registration.status === 'inscrito' ? (
-                            <Badge variant="secondary" className="bg-emerald-50 text-emerald-800">
-                              Pagado ✓
-                            </Badge>
-                          ) : paymentsBlocked ? (
-                            <span className="text-xs text-muted-foreground">Pagos bloqueados</span>
-                          ) : !canRecordPayments ? (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          ) : (
-                            <div className="flex flex-col gap-2">
-                              <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-2">
-                                <Input
-                                  type="number"
-                                  min="0.01"
-                                  step="0.01"
-                                  value={amountDrafts[registration.id] ?? ''}
-                                  onChange={(event) =>
-                                    setAmountDrafts((current) => ({
-                                      ...current,
-                                      [registration.id]: event.target.value,
-                                    }))
-                                  }
-                                  placeholder="Monto"
-                                  aria-label={`Monto de cuota para ${registration.name}`}
-                                  className="w-full md:min-w-0 md:flex-1"
-                                />
-                                <Button
-                                  size="sm"
-                                  disabled={savingPaymentId === registration.id}
-                                  onClick={() => void handleRecordPayment(registration.id)}
-                                  className="w-full md:w-auto"
-                                >
-                                  Registrar pago
-                                </Button>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={
-                                    remaining === null ||
-                                    remaining <= 0 ||
-                                    !isOnline ||
-                                    !hasSession ||
-                                    savingPaymentId === registration.id
-                                  }
-                                  onClick={() => void handleCompleteRemaining(registration.id)}
-                                >
-                                  Completar saldo
-                                </Button>
-                              </div>
-                              <div className="space-y-1">
-                                <div className="h-1.5 w-full rounded bg-secondary">
-                                  <div
-                                    className="h-1.5 rounded bg-primary"
-                                    style={{ width: `${pct}%` }}
-                                  />
-                                </div>
-                                <span className="text-xs text-muted-foreground">
-                                  Pagado {formatAmount(sumPaid)} de{' '}
-                                  {parsedTotal ? formatAmount(parsedTotal) : '—'}
-                                </span>
-                              </div>
+                    <TableCell className="hidden md:table-cell max-w-[220px]">
+                      {registration.has_medical_conditions ? (
+                        <div className="space-y-1">
+                          <Badge
+                            variant="outline"
+                            title={[
+                              registration.medical_conditions,
+                              registration.medical_medications,
+                              registration.medical_dosage,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          >
+                            Sí
+                          </Badge>
+                          <div
+                            className="truncate text-xs"
+                            title={registration.medical_conditions ?? ""}
+                          >
+                            {registration.medical_conditions ?? "—"}
+                          </div>
+                          {(registration.medical_medications ||
+                            registration.medical_dosage) && (
+                            <div
+                              className="truncate text-xs text-muted-foreground"
+                              title={[
+                                registration.medical_medications,
+                                registration.medical_dosage,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            >
+                              {[
+                                registration.medical_medications,
+                                registration.medical_dosage,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
                             </div>
                           )}
-                        </TableCell>
-                        )}
-                        {canMutate && (
-                        <TableCell className="hidden md:table-cell w-40">
-                          {registration.transferred_at ? (
-                            <Badge variant="secondary" className="bg-emerald-50 text-emerald-800" title={new Date(registration.transferred_at).toLocaleDateString('es-CO')}>
-                              Transferido ✓
-                            </Badge>
-                          ) : (
-                            <span
-                              title={
-                                !isOnline || !hasSession
-                                  ? 'Requiere conexión'
-                                  : registration.status !== 'inscrito'
-                                    ? 'Requiere estado Inscrito'
-                                    : !canTransferRetreatToValientes(role)
-                                      ? 'Sin permisos'
-                                      : undefined
-                              }
-                            >
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          No
+                        </span>
+                      )}
+                    </TableCell>
+                    {canMutate && (
+                      <TableCell className="w-56 md:w-64">
+                        {registration.status === "inscrito" ? (
+                          <Badge
+                            variant="secondary"
+                            className="bg-emerald-50 text-emerald-800"
+                          >
+                            Pagado ✓
+                          </Badge>
+                        ) : paymentsBlocked ? (
+                          <span className="text-xs text-muted-foreground">
+                            Pagos bloqueados
+                          </span>
+                        ) : !canRecordPayments ? (
+                          <span className="text-xs text-muted-foreground">
+                            —
+                          </span>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-2">
+                              <Input
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                value={amountDrafts[registration.id] ?? ""}
+                                onChange={(event) =>
+                                  setAmountDrafts((current) => ({
+                                    ...current,
+                                    [registration.id]: event.target.value,
+                                  }))
+                                }
+                                placeholder="Monto"
+                                aria-label={`Monto de cuota para ${registration.name}`}
+                                className="w-full md:min-w-0 md:flex-1"
+                              />
                               <Button
                                 size="sm"
-                                variant="secondary"
+                                disabled={savingPaymentId === registration.id}
+                                onClick={() =>
+                                  void handleRecordPayment(registration.id)
+                                }
+                                className="w-full md:w-auto"
+                              >
+                                Registrar pago
+                              </Button>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
                                 disabled={
-                                  registration.status !== 'inscrito' ||
+                                  remaining === null ||
+                                  remaining <= 0 ||
                                   !isOnline ||
                                   !hasSession ||
-                                  !canTransferRetreatToValientes(role) ||
-                                  transferring
+                                  savingPaymentId === registration.id
                                 }
-                                onClick={() => {
-                                  setTransferTarget(registration)
-                                  setTransferConsent(false)
-                                }}
+                                onClick={() =>
+                                  void handleCompleteRemaining(registration.id)
+                                }
                               >
-                                <UserPlus className="mr-1 h-4 w-4" /> Transferir a Valientes
+                                Completar saldo
                               </Button>
-                            </span>
-                          )}
-                        </TableCell>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="h-1.5 w-full rounded bg-secondary">
+                                <div
+                                  className="h-1.5 rounded bg-primary"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                Pagado {formatAmount(sumPaid)} de{" "}
+                                {parsedTotal ? formatAmount(parsedTotal) : "—"}
+                              </span>
+                            </div>
+                          </div>
                         )}
-                        {canDelete && (
-                          <TableCell className="whitespace-nowrap">
+                      </TableCell>
+                    )}
+                    {canMutate && (
+                      <TableCell className="hidden md:table-cell w-40">
+                        {registration.transferred_at ? (
+                          <Badge
+                            variant="secondary"
+                            className="bg-emerald-50 text-emerald-800"
+                            title={new Date(
+                              registration.transferred_at,
+                            ).toLocaleDateString("es-CO")}
+                          >
+                            Transferido ✓
+                          </Badge>
+                        ) : (
+                          <span
+                            title={
+                              !isOnline || !hasSession
+                                ? "Requiere conexión"
+                                : registration.status !== "inscrito"
+                                  ? "Requiere estado Inscrito"
+                                  : !canTransferRetreatToValientes(role)
+                                    ? "Sin permisos"
+                                    : undefined
+                            }
+                          >
                             <Button
-                              variant="destructive"
                               size="sm"
-                              aria-label={`Eliminar preinscripción de ${registration.name}`}
-                              onClick={() => openDeleteDialog(registration)}
+                              variant="secondary"
+                              disabled={
+                                registration.status !== "inscrito" ||
+                                !isOnline ||
+                                !hasSession ||
+                                !canTransferRetreatToValientes(role) ||
+                                transferring
+                              }
+                              onClick={() => {
+                                setTransferTarget(registration);
+                                setTransferConsent(false);
+                              }}
                             >
-                              Eliminar
+                              <UserPlus className="mr-1 h-4 w-4" /> Transferir a
+                              Valientes
                             </Button>
-                          </TableCell>
+                          </span>
                         )}
+                      </TableCell>
+                    )}
+                    {canDelete && (
+                      <TableCell className="whitespace-nowrap">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label={`Editar preinscripción de ${registration.name}`}
+                            onClick={() => setEditTarget(registration)}
+                          >
+                            <Pencil className="mr-1 h-4 w-4" /> Editar
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            aria-label={`Eliminar preinscripción de ${registration.name}`}
+                            onClick={() => openDeleteDialog(registration)}
+                          >
+                            Eliminar
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
-                )
+                );
               })
             )}
           </TableBody>
         </Table>
       </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm text-muted-foreground">
-            <div>
-              Mostrando {fromDisplay}–{toDisplay} de {totalCount} · Página {page} de {totalPages}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm text-muted-foreground">
+        <div>
+          Mostrando {fromDisplay}–{toDisplay} de {totalCount} · Página {page} de{" "}
+          {totalPages}
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page <= 1 || loadingData}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            Anterior
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages || loadingData}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Siguiente
+          </Button>
+        </div>
+      </div>
+
+      <Dialog
+        open={!!transferTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTransferTarget(null);
+            setTransferConsent(false);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Transferir a Valientes</DialogTitle>
+            <DialogDescription>
+              Se creará un miembro en el grupo Valientes con los datos del
+              retiro. Esta acción es irreversible. Ley 1581 pdtp-v1.0-2026-07-17
+            </DialogDescription>
+          </DialogHeader>
+          {transferTarget && (
+            <div className="space-y-2 text-sm">
+              <p>
+                <strong>Nombre:</strong> {transferTarget.name}
+              </p>
+              <p>
+                <strong>Email:</strong> {transferTarget.email}
+              </p>
+              <p>
+                <strong>Teléfono:</strong> {transferTarget.phone}
+              </p>
+              <p>
+                <strong>Estado:</strong>{" "}
+                {retreatStatusLabel(transferTarget.status)}
+              </p>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={page <= 1 || loadingData} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                Anterior
-              </Button>
-              <Button variant="outline" size="sm" disabled={page >= totalPages || loadingData} onClick={() => setPage((p) => p + 1)}>
-                Siguiente
-              </Button>
-            </div>
+          )}
+          {transferDup && (
+            <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              Ya existe un miembro con ese email o teléfono
+              {transferDup.name ? `: ${transferDup.name}` : ""}
+            </p>
+          )}
+          <div className="flex items-center space-x-2 py-2">
+            <Checkbox
+              id="transfer-consent"
+              checked={transferConsent}
+              onCheckedChange={(v) => setTransferConsent(v === true)}
+            />
+            <Label htmlFor="transfer-consent" className="text-sm font-normal">
+              Acepto que mis datos se traten para mi incorporación al grupo
+              Valientes como miembro asistente (Ley 1581 pdtp-v1.0-2026-07-17)
+            </Label>
           </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setTransferTarget(null);
+                setTransferConsent(false);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              disabled={!transferConsent || transferring || !!transferDup}
+              onClick={() => void handleTransfer()}
+            >
+              {transferring ? "Transfiriendo..." : "Transferir"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-          <Dialog open={!!transferTarget} onOpenChange={(open) => { if (!open) { setTransferTarget(null); setTransferConsent(false) } }}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Transferir a Valientes</DialogTitle>
-                <DialogDescription>
-                  Se creará un miembro en el grupo Valientes con los datos del retiro. Esta acción es irreversible. Ley 1581 pdtp-v1.0-2026-07-17
-                </DialogDescription>
-              </DialogHeader>
-              {transferTarget && (
-                <div className="space-y-2 text-sm">
-                  <p><strong>Nombre:</strong> {transferTarget.name}</p>
-                  <p><strong>Email:</strong> {transferTarget.email}</p>
-                  <p><strong>Teléfono:</strong> {transferTarget.phone}</p>
-                  <p><strong>Estado:</strong> {retreatStatusLabel(transferTarget.status)}</p>
-                </div>
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) closeDeleteDialog();
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar preinscripción</DialogTitle>
+            <DialogDescription>
+              {deleteTarget !== null && (
+                <>
+                  Esta acción afecta a{" "}
+                  <span className="font-medium">{deleteTarget.name}</span>.
+                  Elija qué eliminar.
+                </>
               )}
-              {transferDup && (
-                <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  Ya existe un miembro con ese email o teléfono{transferDup.name ? `: ${transferDup.name}` : ''}
-                </p>
-              )}
-              <div className="flex items-center space-x-2 py-2">
-                <Checkbox id="transfer-consent" checked={transferConsent} onCheckedChange={(v) => setTransferConsent(v === true)} />
-                <Label htmlFor="transfer-consent" className="text-sm font-normal">
-                  Acepto que mis datos se traten para mi incorporación al grupo Valientes como miembro asistente (Ley 1581 pdtp-v1.0-2026-07-17)
-                </Label>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => { setTransferTarget(null); setTransferConsent(false) }}>Cancelar</Button>
-                    <Button disabled={!transferConsent || transferring || !!transferDup} onClick={() => void handleTransfer()}>
-                      {transferring ? 'Transfiriendo...' : 'Transferir'}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-
-              <Dialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open) closeDeleteDialog() }}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Eliminar preinscripción</DialogTitle>
-                    <DialogDescription>
-                      {deleteTarget !== null && (
-                        <>Esta acción afecta a <span className="font-medium">{deleteTarget.name}</span>. Elija qué eliminar.</>
-                      )}
-                    </DialogDescription>
-                  </DialogHeader>
-                  {deleteTarget !== null && (() => {
-                    const sumPaid = paidByRegistration.get(deleteTarget.id) ?? 0
-                    const hasPayments = sumPaid > 0
-                    return (
-                      <div className="space-y-4">
-                        {hasPayments ? (
-                          <div className="space-y-2" role="radiogroup" aria-label="Opciones de eliminación">
-                            <label className="flex items-start gap-2 text-sm">
-                              <input
-                                type="radio"
-                                name="delete-mode"
-                                value="both"
-                                checked={deleteMode === 'both'}
-                                onChange={() => { setDeleteMode('both'); setDeleteConfirmed(false) }}
-                                disabled={deleting}
-                              />
-                              <span>Eliminar preinscripción y pagos</span>
-                            </label>
-                            <label className="flex items-start gap-2 text-sm">
-                              <input
-                                type="radio"
-                                name="delete-mode"
-                                value="payments-only"
-                                checked={deleteMode === 'payments-only'}
-                                onChange={() => { setDeleteMode('payments-only'); setDeleteConfirmed(false) }}
-                                disabled={deleting}
-                              />
-                              <span>Eliminar solo los pagos, conservar la preinscripción</span>
-                            </label>
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">
-                            Eliminar la información de preinscripción
-                          </p>
-                        )}
-                        {deleteMode === 'both' && hasPayments && (
-                          <div className="flex items-start gap-2">
-                            <Checkbox id="delete-confirm" checked={deleteConfirmed} onCheckedChange={(v) => setDeleteConfirmed(v === true)} disabled={deleting} />
-                            <Label htmlFor="delete-confirm" className="text-sm font-medium">
-                              Entiendo que esta acción elimina la preinscripción y sus pagos y no se puede deshacer
-                            </Label>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })()}
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => closeDeleteDialog()} disabled={deleting}>
-                      Cancelar
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={() => void handleConfirmDelete()}
-                      disabled={deleting || (deleteMode === 'both' && !deleteConfirmed)}
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTarget !== null &&
+            (() => {
+              const sumPaid = paidByRegistration.get(deleteTarget.id) ?? 0;
+              const hasPayments = sumPaid > 0;
+              return (
+                <div className="space-y-4">
+                  {hasPayments ? (
+                    <div
+                      className="space-y-2"
+                      role="radiogroup"
+                      aria-label="Opciones de eliminación"
                     >
-                      {deleting ? 'Eliminando…' : 'Eliminar'}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                      <label className="flex items-start gap-2 text-sm">
+                        <input
+                          type="radio"
+                          name="delete-mode"
+                          value="both"
+                          checked={deleteMode === "both"}
+                          onChange={() => {
+                            setDeleteMode("both");
+                            setDeleteConfirmed(false);
+                          }}
+                          disabled={deleting}
+                        />
+                        <span>Eliminar preinscripción y pagos</span>
+                      </label>
+                      <label className="flex items-start gap-2 text-sm">
+                        <input
+                          type="radio"
+                          name="delete-mode"
+                          value="payments-only"
+                          checked={deleteMode === "payments-only"}
+                          onChange={() => {
+                            setDeleteMode("payments-only");
+                            setDeleteConfirmed(false);
+                          }}
+                          disabled={deleting}
+                        />
+                        <span>
+                          Eliminar solo los pagos, conservar la preinscripción
+                        </span>
+                      </label>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Eliminar la información de preinscripción
+                    </p>
+                  )}
+                  {deleteMode === "both" && hasPayments && (
+                    <div className="flex items-start gap-2">
+                      <Checkbox
+                        id="delete-confirm"
+                        checked={deleteConfirmed}
+                        onCheckedChange={(v) => setDeleteConfirmed(v === true)}
+                        disabled={deleting}
+                      />
+                      <Label
+                        htmlFor="delete-confirm"
+                        className="text-sm font-medium"
+                      >
+                        Entiendo que esta acción elimina la preinscripción y sus
+                        pagos y no se puede deshacer
+                      </Label>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => closeDeleteDialog()}
+              disabled={deleting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void handleConfirmDelete()}
+              disabled={deleting || (deleteMode === "both" && !deleteConfirmed)}
+            >
+              {deleting ? "Eliminando…" : "Eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-          <div className="print-header hidden print:block text-sm text-muted-foreground mb-4">
-            Confidencial Ley 1581 — Uso interno MD CC — Evento: {RETREAT_EVENT_KEY} — Generado: {new Date().toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-          </div>
-          <style>{`@media print{nav,.no-print{display:none}tr{break-inside:avoid}@page{margin:1cm}.print-header{display:block}}`}</style>
+      <RetreatPreinscriptionEdit
+        registration={editTarget}
+        open={editTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditTarget(null);
+        }}
+        onSaved={() => {
+          void loadData();
+        }}
+      />
+
+      <div className="print-header hidden print:block text-sm text-muted-foreground mb-4">
+        Confidencial Ley 1581 — Uso interno MD CC — Evento: {RETREAT_EVENT_KEY}{" "}
+        — Generado:{" "}
+        {new Date().toLocaleDateString("es-CO", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
+      </div>
+      <style>{`@media print{nav,.no-print{display:none}tr{break-inside:avoid}@page{margin:1cm}.print-header{display:block}}`}</style>
     </div>
-  )
+  );
 }

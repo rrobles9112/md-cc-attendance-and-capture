@@ -131,15 +131,17 @@ describe('retreat-registrations mutation gate (super_admin only)', () => {
     expect(screen.queryByRole('button', { name: /Registrar pago/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Transferir a Valientes/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Eliminar preinscripción de Ana Pérez/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Editar preinscripción de Ana Pérez/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('columnheader', { name: /Registrar pago/i })).not.toBeInTheDocument()
   })
 
-  it('super_admin sees payment, transfer, and delete controls', async () => {
+  it('super_admin sees payment, transfer, edit, and delete controls', async () => {
     mockUseRole.mockReturnValue({ role: 'super_admin', loading: false })
     const Page = (await import('../page')).default
     render(<Page />)
     await waitFor(() => expect(screen.getByText('Ana Pérez')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /Registrar pago/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Editar preinscripción de Ana Pérez/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Eliminar preinscripción de Ana Pérez/i })).toBeInTheDocument()
   })
 })

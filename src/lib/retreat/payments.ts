@@ -1,10 +1,22 @@
 export type RetreatStatus = 'preinscrito' | 'pagos_parciales' | 'inscrito'
 
+export function normalizeRetreatCostInput(value: string): string {
+  const trimmed = value.trim()
+  if (trimmed === '') return trimmed
+  if (trimmed.includes(',')) {
+    return trimmed.replace(/\./g, '').replace(',', '.')
+  }
+  if (/^\d{1,3}(\.\d{3})+$/.test(trimmed)) {
+    return trimmed.replace(/\./g, '')
+  }
+  return trimmed
+}
+
 export function parsePositiveTotal(value: string | null): number | null {
   if (value === null) return null
-  const trimmed = value.trim()
-  if (trimmed === '') return null
-  const parsed = Number(trimmed)
+  const normalized = normalizeRetreatCostInput(value)
+  if (normalized === '') return null
+  const parsed = Number(normalized)
   if (!Number.isFinite(parsed) || parsed <= 0) return null
   return parsed
 }

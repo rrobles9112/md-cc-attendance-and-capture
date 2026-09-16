@@ -48,6 +48,12 @@ DECLARE
   v_whatsapp_id UUID;
   v_has_whatsapp BOOLEAN;
   v_whatsapp TEXT;
+  v_med_id UUID;
+  v_no_med_id UUID;
+  v_has_medical BOOLEAN;
+  v_med_conditions TEXT;
+  v_med_meds TEXT;
+  v_med_dosage TEXT;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = v_super_admin_id) THEN
     RAISE EXCEPTION 'Seed users missing — run supabase db reset (applies seed.sql) before retreat RLS tests';
@@ -296,6 +302,70 @@ BEGIN
   END IF;
 
   RAISE NOTICE 'PASS: anon RPC inserts preinscrito with consent on the row; no members/consent_records';
+
+  -- =========================================================================
+  -- 1.2b Medical details: opt-in stores trimmed values; default stores false/NULL
+  -- =========================================================================
+  SET LOCAL ROLE anon;
+  PERFORM set_config(
+    'request.jwt.claims',
+    json_build_object('role', 'anon')::text,
+    true
+  );
+
+  v_med_id := public.register_retreat_preinscription(
+    p_name := 'Medical Retreat',
+    p_phone := '3000000051',
+    p_email := 'retreat-medical@example.com',
+    p_general_consent := true,
+    p_has_medical_conditions := true,
+    p_medical_conditions := '  Asma ',
+    p_medical_medications := ' Salbutamol ',
+    p_medical_dosage := ' Cada 8 horas '
+  );
+
+  v_no_med_id := public.register_retreat_preinscription(
+    p_name := 'No Medical Retreat',
+    p_phone := '3000000052',
+    p_email := 'retreat-no-medical@example.com',
+    p_general_consent := true,
+    p_medical_conditions := 'Asma'
+  );
+  RESET ROLE;
+
+  SELECT r.has_medical_conditions, r.medical_conditions,
+         r.medical_medications, r.medical_dosage
+    INTO v_has_medical, v_med_conditions, v_med_meds, v_med_dosage
+  FROM public.retreat_registrations r
+  WHERE r.id = v_med_id;
+
+  IF v_has_medical IS NOT TRUE THEN
+    RAISE EXCEPTION 'FAIL: has_medical_conditions must be true when opted in';
+  END IF;
+  IF v_med_conditions IS DISTINCT FROM 'Asma' THEN
+    RAISE EXCEPTION 'FAIL: medical_conditions must be trimmed, got %', v_med_conditions;
+  END IF;
+  IF v_med_meds IS DISTINCT FROM 'Salbutamol' THEN
+    RAISE EXCEPTION 'FAIL: medical_medications must be trimmed, got %', v_med_meds;
+  END IF;
+  IF v_med_dosage IS DISTINCT FROM 'Cada 8 horas' THEN
+    RAISE EXCEPTION 'FAIL: medical_dosage must be trimmed, got %', v_med_dosage;
+  END IF;
+
+  SELECT r.has_medical_conditions, r.medical_conditions,
+         r.medical_medications, r.medical_dosage
+    INTO v_has_medical, v_med_conditions, v_med_meds, v_med_dosage
+  FROM public.retreat_registrations r
+  WHERE r.id = v_no_med_id;
+
+  IF v_has_medical IS NOT FALSE THEN
+    RAISE EXCEPTION 'FAIL: has_medical_conditions must default to false';
+  END IF;
+  IF v_med_conditions IS NOT NULL OR v_med_meds IS NOT NULL OR v_med_dosage IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: medical details must be NULL without opt-in';
+  END IF;
+
+  RAISE NOTICE 'PASS: medical details opt-in stores trimmed values; default false/NULL';
 
   -- Anon still cannot read the PII just inserted
   SET LOCAL ROLE anon;

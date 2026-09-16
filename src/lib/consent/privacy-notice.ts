@@ -22,14 +22,14 @@ De conformidad con la Ley 1581 de 2012 y el Decreto 1377 de 2013, le informamos:
 
 5. CONTACTO: Para ejercer sus derechos ARCO, contacte al responsable de protección de datos.`
 
-export const RETREAT_PRIVACY_NOTICE_ES = `AVISO DE PRIVACIDAD — PREINSCRIPCIÓN AL RETIRO JUVENIL
+export const RETREAT_PRIVACY_NOTICE_ES = `AVISO DE PRIVACIDAD — PREINSCRIPCIÓN AL RETIRO JUVENIL UN CORAZÓN NUEVO
 
 De conformidad con la Ley 1581 de 2012 y el Decreto 1377 de 2013, le informamos:
 
 1. RESPONSABLE: La comunidad religiosa que administra esta plataforma es la responsable del tratamiento de sus datos personales.
 
 2. FINALIDAD: Sus datos serán utilizados para:
-   - Preinscripción y gestión de su participación en el retiro juvenil
+   - Preinscripción y gestión de su participación en el retiro juvenil Un Corazón Nuevo
    - Comunicaciones relacionadas con el retiro
    - Contacto con el preinscrito o su representante legal
 

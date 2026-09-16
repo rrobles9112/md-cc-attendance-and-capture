@@ -5,7 +5,7 @@ import { parsePositiveTotal } from "./payments";
  * Must include transferred_* for badge + audit, birthday/is_minor for future export.
  */
 export const RETREAT_REGISTRATIONS_SELECT =
-  "id,name,email,phone,birthday,is_minor,legal_rep_name,status,created_at,transferred_at,transferred_member_id,member_id";
+  "id,name,email,phone,birthday,is_minor,legal_rep_name,status,created_at,transferred_at,transferred_member_id,member_id,has_whatsapp,whatsapp_number,has_medical_conditions,medical_conditions,medical_medications,medical_dosage";
 
 /**
  * Escape PostgREST ilike wildcards: % _ , \ . // comma escaped for .or URL safety
@@ -109,7 +109,11 @@ export function formatAmountCOP(value: number): string {
 }
 
 export function groupPaymentsByRegistration(
-  payments: Array<{ registration_id: string; amount: number | string; created_at: string }>,
+  payments: Array<{
+    registration_id: string;
+    amount: number | string;
+    created_at: string;
+  }>,
 ): Map<string, PaymentForAbonos[]> {
   const m = new Map<string, PaymentForAbonos[]>();
   for (const p of payments) {
