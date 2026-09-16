@@ -24,7 +24,7 @@
     "dexie": "^4.0.11",
     "libphonenumber-js": "^1.12.15",
     "lucide-react": "^1.28.0",
-    "next": "^15.5.22",
+    "next": "^16.3.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "sharp": "^0.35.3",
