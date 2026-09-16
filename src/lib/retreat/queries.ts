@@ -109,7 +109,11 @@ export function formatAmountCOP(value: number): string {
 }
 
 export function groupPaymentsByRegistration(
-  payments: Array<{ registration_id: string; amount: number | string; created_at: string }>,
+  payments: Array<{
+    registration_id: string;
+    amount: number | string;
+    created_at: string;
+  }>,
 ): Map<string, PaymentForAbonos[]> {
   const m = new Map<string, PaymentForAbonos[]>();
   for (const p of payments) {

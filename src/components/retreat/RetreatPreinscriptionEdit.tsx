@@ -1,9 +1,9 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -11,40 +11,40 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { createClient } from '@/lib/supabase/client'
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { createClient } from "@/lib/supabase/client";
 import {
   applyRetreatRegistrationUpdate,
   type RetreatRegistrationUpdatePayload,
-} from '@/lib/retreat/update'
+} from "@/lib/retreat/update";
 
 export type RetreatRegistrationEditValues = {
-  id: string
-  name: string
-  email: string
-  phone: string
-  birthday: string | null
-  legal_rep_name: string | null
-  has_whatsapp: boolean
-  whatsapp_number: string | null
-  has_medical_conditions: boolean
-  medical_conditions: string | null
-  medical_medications: string | null
-  medical_dosage: string | null
-}
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  birthday: string | null;
+  legal_rep_name: string | null;
+  has_whatsapp: boolean;
+  whatsapp_number: string | null;
+  has_medical_conditions: boolean;
+  medical_conditions: string | null;
+  medical_medications: string | null;
+  medical_dosage: string | null;
+};
 
 export interface RetreatPreinscriptionEditProps {
-  registration: RetreatRegistrationEditValues | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onSaved: () => void
+  registration: RetreatRegistrationEditValues | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
 }
 
 function toDateInputValue(value: string | null): string {
-  if (!value) return ''
-  return value.slice(0, 10)
+  if (!value) return "";
+  return value.slice(0, 10);
 }
 
 export function RetreatPreinscriptionEdit({
@@ -53,37 +53,37 @@ export function RetreatPreinscriptionEdit({
   onOpenChange,
   onSaved,
 }: RetreatPreinscriptionEditProps) {
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('')
-  const [birthday, setBirthday] = useState('')
-  const [legalRepName, setLegalRepName] = useState('')
-  const [hasWhatsapp, setHasWhatsapp] = useState(false)
-  const [whatsappNumber, setWhatsappNumber] = useState('')
-  const [hasMedicalConditions, setHasMedicalConditions] = useState(false)
-  const [medicalConditions, setMedicalConditions] = useState('')
-  const [medicalMedications, setMedicalMedications] = useState('')
-  const [medicalDosage, setMedicalDosage] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [birthday, setBirthday] = useState("");
+  const [legalRepName, setLegalRepName] = useState("");
+  const [hasWhatsapp, setHasWhatsapp] = useState(false);
+  const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [hasMedicalConditions, setHasMedicalConditions] = useState(false);
+  const [medicalConditions, setMedicalConditions] = useState("");
+  const [medicalMedications, setMedicalMedications] = useState("");
+  const [medicalDosage, setMedicalDosage] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!registration) return
-    setName(registration.name)
-    setPhone(registration.phone)
-    setEmail(registration.email)
-    setBirthday(toDateInputValue(registration.birthday))
-    setLegalRepName(registration.legal_rep_name ?? '')
-    setHasWhatsapp(Boolean(registration.has_whatsapp))
-    setWhatsappNumber(registration.whatsapp_number ?? '')
-    setHasMedicalConditions(Boolean(registration.has_medical_conditions))
-    setMedicalConditions(registration.medical_conditions ?? '')
-    setMedicalMedications(registration.medical_medications ?? '')
-    setMedicalDosage(registration.medical_dosage ?? '')
-  }, [registration])
+    if (!registration) return;
+    setName(registration.name);
+    setPhone(registration.phone);
+    setEmail(registration.email);
+    setBirthday(toDateInputValue(registration.birthday));
+    setLegalRepName(registration.legal_rep_name ?? "");
+    setHasWhatsapp(Boolean(registration.has_whatsapp));
+    setWhatsappNumber(registration.whatsapp_number ?? "");
+    setHasMedicalConditions(Boolean(registration.has_medical_conditions));
+    setMedicalConditions(registration.medical_conditions ?? "");
+    setMedicalMedications(registration.medical_medications ?? "");
+    setMedicalDosage(registration.medical_dosage ?? "");
+  }, [registration]);
 
   async function handleSave() {
-    if (!registration || saving) return
-    setSaving(true)
+    if (!registration || saving) return;
+    setSaving(true);
     try {
       const result = await applyRetreatRegistrationUpdate(
         {
@@ -100,29 +100,29 @@ export function RetreatPreinscriptionEdit({
           medicalDosage,
         },
         async (payload: RetreatRegistrationUpdatePayload) => {
-          const supabase = createClient()
+          const supabase = createClient();
           const { data, error } = (await supabase
-            .from('retreat_registrations')
+            .from("retreat_registrations")
             .update(payload)
-            .eq('id', registration.id)
-            .select('id')) as {
-            data: Array<{ id: string }> | null
-            error: { message: string; code?: string } | null
-          }
-          return { data, error }
+            .eq("id", registration.id)
+            .select("id")) as {
+            data: Array<{ id: string }> | null;
+            error: { message: string; code?: string } | null;
+          };
+          return { data, error };
         },
-      )
+      );
       if (!result.ok) {
-        toast.error(result.error)
-        return
+        toast.error(result.error);
+        return;
       }
-      toast.success('Preinscripción actualizada')
-      onOpenChange(false)
-      onSaved()
+      toast.success("Preinscripción actualizada");
+      onOpenChange(false);
+      onSaved();
     } catch {
-      toast.error('Error al actualizar la preinscripción')
+      toast.error("Error al actualizar la preinscripción");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
@@ -132,14 +132,15 @@ export function RetreatPreinscriptionEdit({
         <DialogHeader>
           <DialogTitle>Editar preinscripción</DialogTitle>
           <DialogDescription>
-            Actualice los datos de contacto. El estado de pago y los consentimientos no se modifican.
+            Actualice los datos de contacto. El estado de pago y los
+            consentimientos no se modifican.
           </DialogDescription>
         </DialogHeader>
         <form
           className="space-y-3"
           onSubmit={(event) => {
-            event.preventDefault()
-            void handleSave()
+            event.preventDefault();
+            void handleSave();
           }}
         >
           <div className="space-y-1">
@@ -196,7 +197,9 @@ export function RetreatPreinscriptionEdit({
             <Label htmlFor="retreat-edit-has-whatsapp">Tiene WhatsApp</Label>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="retreat-edit-whatsapp-number">Número de WhatsApp adicional</Label>
+            <Label htmlFor="retreat-edit-whatsapp-number">
+              Número de WhatsApp adicional
+            </Label>
             <Input
               id="retreat-edit-whatsapp-number"
               value={whatsappNumber}
@@ -208,14 +211,20 @@ export function RetreatPreinscriptionEdit({
             <Checkbox
               id="retreat-edit-has-medical"
               checked={hasMedicalConditions}
-              onCheckedChange={(checked) => setHasMedicalConditions(checked === true)}
+              onCheckedChange={(checked) =>
+                setHasMedicalConditions(checked === true)
+              }
             />
-            <Label htmlFor="retreat-edit-has-medical">Tiene alguna condición médica</Label>
+            <Label htmlFor="retreat-edit-has-medical">
+              Tiene alguna condición médica
+            </Label>
           </div>
           {hasMedicalConditions && (
             <>
               <div className="space-y-1">
-                <Label htmlFor="retreat-edit-medical-conditions">¿Cuáles condiciones?</Label>
+                <Label htmlFor="retreat-edit-medical-conditions">
+                  ¿Cuáles condiciones?
+                </Label>
                 <Input
                   id="retreat-edit-medical-conditions"
                   value={medicalConditions}
@@ -223,15 +232,21 @@ export function RetreatPreinscriptionEdit({
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="retreat-edit-medical-medications">Medicamentos</Label>
+                <Label htmlFor="retreat-edit-medical-medications">
+                  Medicamentos
+                </Label>
                 <Input
                   id="retreat-edit-medical-medications"
                   value={medicalMedications}
-                  onChange={(event) => setMedicalMedications(event.target.value)}
+                  onChange={(event) =>
+                    setMedicalMedications(event.target.value)
+                  }
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="retreat-edit-medical-dosage">Dosis / cada cuántas horas</Label>
+                <Label htmlFor="retreat-edit-medical-dosage">
+                  Dosis / cada cuántas horas
+                </Label>
                 <Input
                   id="retreat-edit-medical-dosage"
                   value={medicalDosage}
@@ -250,11 +265,11 @@ export function RetreatPreinscriptionEdit({
               Cancelar
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? 'Guardando...' : 'Guardar'}
+              {saving ? "Guardando..." : "Guardar"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
