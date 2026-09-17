@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -190,6 +190,7 @@ export default function RetreatRegistrationsPage() {
   const [amountDrafts, setAmountDrafts] = useState<Record<string, string>>({});
   const [savingPaymentId, setSavingPaymentId] = useState<string | null>(null);
   const [savingCost, setSavingCost] = useState(false);
+  const savingCostRef = useRef(false);
   const [tab, setTab] = useState<"todos" | "preinscrito" | "inscrito">("todos");
   const [search, setSearch] = useState("");
   const searchDebounced = useDebouncedValue(search, 300);
@@ -364,19 +365,34 @@ export default function RetreatRegistrationsPage() {
   const toDisplay = Math.min(page * pageSize, totalCount);
 
   async function handleSaveCost() {
+    if (savingCostRef.current) return;
     const normalized = normalizeRetreatCostInput(costDraft);
     if (parsePositiveTotal(normalized) === null) {
       toast.error("El costo debe ser un número positivo");
       return;
     }
+    savingCostRef.current = true;
     setSavingCost(true);
     try {
       await setRetreatTotalCost(normalized);
       toast.success("Costo total del retiro actualizado");
       await loadData();
-    } catch {
-      toast.error("Error al guardar el costo total");
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      const message = e instanceof Error ? e.message : "";
+      if (code === "permission-denied") {
+        toast.error(
+          "Sin permisos para guardar el costo (requiere super_admin). Verifique su rol o vuelva a iniciar sesión.",
+        );
+      } else if (code === "network") {
+        toast.error("Sin conexión. Verifique su red e intente de nuevo.");
+      } else if (message === "Not authenticated") {
+        toast.error("No hay una sesión activa");
+      } else {
+        toast.error("Error al guardar el costo total");
+      }
     } finally {
+      savingCostRef.current = false;
       setSavingCost(false);
     }
   }
