@@ -2,6 +2,7 @@ import {
   checkMinorStatus,
   validateMinorFields,
 } from "@/lib/consent/validation";
+import { POLICY_VERSION } from "@/lib/consent/privacy-notice";
 
 export type RetreatRegistrationUpdateInput = {
   name: string;
@@ -15,6 +16,11 @@ export type RetreatRegistrationUpdateInput = {
   medicalConditions: string;
   medicalMedications: string;
   medicalDosage: string;
+  denomination?: string;
+  communityName?: string;
+  sensitiveConsent?: boolean;
+  prevDenomination?: string | null;
+  prevCommunityName?: string | null;
 };
 
 export type RetreatRegistrationUpdatePayload = {
@@ -30,6 +36,10 @@ export type RetreatRegistrationUpdatePayload = {
   medical_conditions: string | null;
   medical_medications: string | null;
   medical_dosage: string | null;
+  denomination: string | null;
+  community_name: string | null;
+  sensitive_consent_accepted_at: string | null;
+  sensitive_consent_policy_version: string | null;
 };
 
 export type RetreatUpdateResult =
@@ -84,6 +94,27 @@ export function buildRetreatRegistrationUpdate(
   const medicalMedications = input.medicalMedications.trim();
   const medicalDosage = input.medicalDosage.trim();
 
+  const denomination = (input.denomination ?? "").trim();
+  const communityName = (input.communityName ?? "").trim();
+  const prevDenomination = (input.prevDenomination ?? "").trim();
+  const prevCommunityName = (input.prevCommunityName ?? "").trim();
+  const religiousChanged =
+    denomination !== prevDenomination || communityName !== prevCommunityName;
+  const storesReligious = denomination !== "" || communityName !== "";
+  let sensitiveConsentAcceptedAt: string | null = null;
+  let sensitiveConsentPolicyVersion: string | null = null;
+  if (storesReligious && religiousChanged) {
+    if (!input.sensitiveConsent) {
+      return {
+        ok: false,
+        error:
+          "Para guardar la denominación o la comunidad debe aceptar el consentimiento de datos sensibles",
+      };
+    }
+    sensitiveConsentAcceptedAt = new Date().toISOString();
+    sensitiveConsentPolicyVersion = POLICY_VERSION;
+  }
+
   return {
     ok: true,
     payload: {
@@ -103,6 +134,10 @@ export function buildRetreatRegistrationUpdate(
         ? medicalMedications || null
         : null,
       medical_dosage: hasMedicalConditions ? medicalDosage || null : null,
+      denomination: denomination || null,
+      community_name: communityName || null,
+      sensitive_consent_accepted_at: sensitiveConsentAcceptedAt,
+      sensitive_consent_policy_version: sensitiveConsentPolicyVersion,
     },
   };
 }

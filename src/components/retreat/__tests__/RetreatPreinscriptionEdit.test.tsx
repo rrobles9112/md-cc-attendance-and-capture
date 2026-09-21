@@ -60,6 +60,8 @@ const sample = {
   medical_conditions: null as string | null,
   medical_medications: null as string | null,
   medical_dosage: null as string | null,
+  denomination: null as string | null,
+  community_name: null as string | null,
 };
 
 import { RetreatPreinscriptionEdit } from "../RetreatPreinscriptionEdit";
@@ -161,5 +163,89 @@ describe("RetreatPreinscriptionEdit", () => {
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
     expect(mockUpdate).not.toHaveBeenCalled();
     expect(onSaved).not.toHaveBeenCalled();
+  });
+});
+
+describe("RetreatPreinscriptionEdit religious fields (PR3)", () => {
+  it("prefills denomination and community from the registration", () => {
+    render(
+      <RetreatPreinscriptionEdit
+        registration={{
+          ...sample,
+          denomination: "Católica",
+          community_name: "San Pablo",
+        }}
+        open
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    expect(
+      (screen.getByLabelText("Denominación religiosa") as HTMLInputElement)
+        .value,
+    ).toBe("Católica");
+    expect(
+      (screen.getByLabelText("Nombre de la comunidad") as HTMLInputElement)
+        .value,
+    ).toBe("San Pablo");
+  });
+
+  it("blocks saving new religious data without sensitive consent", async () => {
+    render(
+      <RetreatPreinscriptionEdit
+        registration={sample}
+        open
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Denominación religiosa"), {
+      target: { value: "Católica" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() =>
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        expect.stringMatching(/consentimiento.*sensible/i),
+      ),
+    );
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("persists religious data with a consent stamp when consent is accepted", async () => {
+    const onSaved = vi.fn();
+    render(
+      <RetreatPreinscriptionEdit
+        registration={sample}
+        open
+        onOpenChange={vi.fn()}
+        onSaved={onSaved}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Denominación religiosa"), {
+      target: { value: "Católica" },
+    });
+    fireEvent.change(screen.getByLabelText("Nombre de la comunidad"), {
+      target: { value: "San Pablo" },
+    });
+    fireEvent.click(screen.getByLabelText(/datos religiosos/));
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        denomination: "Católica",
+        community_name: "San Pablo",
+        sensitive_consent_policy_version: "pdtp-v1.0-2026-07-17",
+      }),
+    );
+    const [payload] = mockUpdate.mock.calls[0] as [
+      Record<string, unknown>,
+    ];
+    expect(typeof payload.sensitive_consent_accepted_at).toBe("string");
+    await waitFor(() =>
+      expect(toastSuccessMock).toHaveBeenCalledWith(
+        "Preinscripción actualizada",
+      ),
+    );
+    expect(onSaved).toHaveBeenCalledTimes(1);
   });
 });

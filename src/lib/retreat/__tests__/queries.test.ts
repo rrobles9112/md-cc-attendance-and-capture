@@ -48,6 +48,11 @@ describe("retreat/queries — build query + abonos aggregates (PR2 T-005/T-013)"
     expect(RETREAT_REGISTRATIONS_SELECT).toContain("medical_conditions");
     expect(RETREAT_REGISTRATIONS_SELECT).toContain("medical_medications");
     expect(RETREAT_REGISTRATIONS_SELECT).toContain("medical_dosage");
+    expect(RETREAT_REGISTRATIONS_SELECT).toContain("denomination");
+    expect(RETREAT_REGISTRATIONS_SELECT).toContain("community_name");
+    expect(RETREAT_REGISTRATIONS_SELECT).toContain(
+      "sensitive_consent_accepted_at",
+    );
   });
 
   it("computeRowAbonos 200k+100k total 400k => 75% 2 last", () => {
