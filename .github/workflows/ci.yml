@@ -91,6 +91,9 @@ jobs:
           # 024 duplicate-guard RPC tests run as owner (anon SET ROLE inside).
           psql "$DB_URL" -v ON_ERROR_STOP=1 \
             -f supabase/tests/retreat_duplicate_guard.test.sql
+          # PR4 audit: pins no-unique-on-members(email/phone) + duplicate_flag.
+          psql "$DB_URL" -v ON_ERROR_STOP=1 \
+            -f supabase/tests/member_capture_duplicate_audit.test.sql
       - name: Stop Supabase
         if: always()
         run: supabase stop --no-backup || true
