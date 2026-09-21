@@ -144,8 +144,8 @@ describe("submitRetreatPreinscriptionForMember adapter", () => {
     await expect(
       submitRetreatPreinscriptionForMember("member-uuid-123", basePayload),
     ).rejects.toMatchObject({
-      message: expect.stringContaining("already_preinscribed"),
-      code: "23505",
+      message:
+        "Ya existe una preinscripción con ese email/teléfono para este retiro.",
     });
   });
 
@@ -153,5 +153,27 @@ describe("submitRetreatPreinscriptionForMember adapter", () => {
     // Verify adapter file itself does not import Dexie/queue (static check is in submit-adapter.test.ts for anon; here we just ensure no call)
     await submitRetreatPreinscriptionForMember("member-uuid-123", basePayload);
     expect(rpcMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("submitRetreatPreinscriptionForMember duplicate mapping (024)", () => {
+  it("maps already_preinscribed 23505 to a user-facing Spanish error", async () => {
+    const { RETREAT_DUPLICATE_MESSAGE, isUserFacingError } = await import(
+      "../submit-adapter"
+    );
+    rpcMock.mockResolvedValueOnce({
+      data: null,
+      error: {
+        message: "already_preinscribed: duplicate email/phone for this event",
+        code: "23505",
+      },
+    });
+
+    const caught = await submitRetreatPreinscriptionForMember(
+      "member-uuid-123",
+      basePayload,
+    ).catch((err: unknown) => err);
+    expect((caught as Error).message).toBe(RETREAT_DUPLICATE_MESSAGE);
+    expect(isUserFacingError(caught)).toBe(true);
   });
 });
