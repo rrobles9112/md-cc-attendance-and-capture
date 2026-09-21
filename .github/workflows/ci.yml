@@ -88,6 +88,9 @@ jobs:
             -f supabase/tests/rls.test.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 \
             -f supabase/tests/retreat_rls.test.sql
+          # 024 duplicate-guard RPC tests run as owner (anon SET ROLE inside).
+          psql "$DB_URL" -v ON_ERROR_STOP=1 \
+            -f supabase/tests/retreat_duplicate_guard.test.sql
       - name: Stop Supabase
         if: always()
         run: supabase stop --no-backup || true
