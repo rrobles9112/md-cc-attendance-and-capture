@@ -37,6 +37,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # setup-cli@v3 installs the CLI via npm and requires Node 20+ with npm
+      # on the runner (drifted: ubuntu-latest no longer guarantees it).
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
       - uses: supabase/setup-cli@v3
         with:
           # Pinned: supabase CLI 2.112.0 has a regression parsing the management
