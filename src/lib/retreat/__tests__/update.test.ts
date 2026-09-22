@@ -35,6 +35,10 @@ describe("buildRetreatRegistrationUpdate", () => {
       medical_conditions: "Asma",
       medical_medications: "Salbutamol",
       medical_dosage: "Cada 8 horas",
+      denomination: null,
+      community_name: null,
+      sensitive_consent_accepted_at: null,
+      sensitive_consent_policy_version: null,
     });
   });
 
@@ -254,5 +258,87 @@ describe("applyRetreatRegistrationUpdate", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toMatch(/Ya existe una preinscripción/i);
+  });
+});
+
+describe("buildRetreatRegistrationUpdate religious fields (PR3)", () => {
+  const base = {
+    name: "Ana Pérez",
+    phone: "3001234567",
+    email: "ana@example.com",
+    birthday: "2000-01-15",
+    legalRepName: "",
+    hasWhatsapp: false,
+    whatsappNumber: "",
+    hasMedicalConditions: false,
+    medicalConditions: "",
+    medicalMedications: "",
+    medicalDosage: "",
+  };
+
+  it("requires sensitive consent when new religious data is stored", () => {
+    const result = buildRetreatRegistrationUpdate({
+      ...base,
+      denomination: "Católica",
+      communityName: "San Pablo",
+      sensitiveConsent: false,
+      prevDenomination: null,
+      prevCommunityName: null,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/consentimiento.*sensible/i);
+  });
+
+  it("stamps sensitive consent when new religious data is stored with consent", () => {
+    const result = buildRetreatRegistrationUpdate({
+      ...base,
+      denomination: "  Católica ",
+      communityName: " San Pablo ",
+      sensitiveConsent: true,
+      prevDenomination: null,
+      prevCommunityName: null,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.payload.denomination).toBe("Católica");
+    expect(result.payload.community_name).toBe("San Pablo");
+    expect(result.payload.sensitive_consent_accepted_at).toMatch(
+      /^\d{4}-\d{2}-\d{2}T/,
+    );
+    expect(result.payload.sensitive_consent_policy_version).toBe(
+      "pdtp-v1.0-2026-07-17",
+    );
+  });
+
+  it("does not require consent when religious values are unchanged", () => {
+    const result = buildRetreatRegistrationUpdate({
+      ...base,
+      denomination: "Católica",
+      communityName: "San Pablo",
+      sensitiveConsent: false,
+      prevDenomination: "Católica",
+      prevCommunityName: "San Pablo",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.payload.denomination).toBe("Católica");
+    expect(result.payload.sensitive_consent_accepted_at).toBeNull();
+    expect(result.payload.sensitive_consent_policy_version).toBeNull();
+  });
+
+  it("clears religious data to null without consent when both are emptied", () => {
+    const result = buildRetreatRegistrationUpdate({
+      ...base,
+      denomination: "  ",
+      communityName: "",
+      sensitiveConsent: false,
+      prevDenomination: "Católica",
+      prevCommunityName: "San Pablo",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.payload.denomination).toBeNull();
+    expect(result.payload.community_name).toBeNull();
   });
 });

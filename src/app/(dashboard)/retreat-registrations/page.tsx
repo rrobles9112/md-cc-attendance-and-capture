@@ -101,6 +101,9 @@ interface RetreatRegistrationRow {
   medical_conditions: string | null;
   medical_medications: string | null;
   medical_dosage: string | null;
+  denomination: string | null;
+  community_name: string | null;
+  sensitive_consent_accepted_at: string | null;
 }
 
 interface RetreatPaymentRow {

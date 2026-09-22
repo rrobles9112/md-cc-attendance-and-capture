@@ -186,3 +186,61 @@ describe("submitRetreatPreinscription", () => {
     expect(enqueueMock).not.toHaveBeenCalled();
   });
 });
+
+describe("submitRetreatPreinscription duplicate mapping (024)", () => {
+  it("maps raw 23505 on the event email index to a user-facing Spanish error", async () => {
+    const { RETREAT_DUPLICATE_MESSAGE, isUserFacingError } = await import(
+      "../submit-adapter"
+    );
+    rpcMock.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "23505",
+        message:
+          'duplicate key value violates unique constraint "retreat_registrations_event_email_uidx"',
+      },
+    });
+
+    const caught = await submitRetreatPreinscription(adultPayload).catch(
+      (err: unknown) => err,
+    );
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toBe(RETREAT_DUPLICATE_MESSAGE);
+    expect(isUserFacingError(caught)).toBe(true);
+  });
+
+  it("maps already_preinscribed RPC errors to the same user-facing message", async () => {
+    const { RETREAT_DUPLICATE_MESSAGE, isUserFacingError } = await import(
+      "../submit-adapter"
+    );
+    rpcMock.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "23505",
+        message: "already_preinscribed: duplicate email/phone for this event",
+      },
+    });
+
+    const caught = await submitRetreatPreinscription(adultPayload).catch(
+      (err: unknown) => err,
+    );
+    expect((caught as Error).message).toBe(RETREAT_DUPLICATE_MESSAGE);
+    expect(isUserFacingError(caught)).toBe(true);
+  });
+
+  it("rethrows non-duplicate errors untouched and not user-facing", async () => {
+    const { isUserFacingError } = await import("../submit-adapter");
+    rpcMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: "general consent is required" },
+    });
+
+    const caught = await submitRetreatPreinscription(adultPayload).catch(
+      (err: unknown) => err,
+    );
+    expect((caught as { message: string }).message).toBe(
+      "general consent is required",
+    );
+    expect(isUserFacingError(caught)).toBe(false);
+  });
+});

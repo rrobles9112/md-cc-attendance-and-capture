@@ -33,6 +33,8 @@ export type RetreatRegistrationEditValues = {
   medical_conditions: string | null;
   medical_medications: string | null;
   medical_dosage: string | null;
+  denomination: string | null;
+  community_name: string | null;
 };
 
 export interface RetreatPreinscriptionEditProps {
@@ -64,6 +66,9 @@ export function RetreatPreinscriptionEdit({
   const [medicalConditions, setMedicalConditions] = useState("");
   const [medicalMedications, setMedicalMedications] = useState("");
   const [medicalDosage, setMedicalDosage] = useState("");
+  const [denomination, setDenomination] = useState("");
+  const [communityName, setCommunityName] = useState("");
+  const [sensitiveConsent, setSensitiveConsent] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -79,6 +84,9 @@ export function RetreatPreinscriptionEdit({
     setMedicalConditions(registration.medical_conditions ?? "");
     setMedicalMedications(registration.medical_medications ?? "");
     setMedicalDosage(registration.medical_dosage ?? "");
+    setDenomination(registration.denomination ?? "");
+    setCommunityName(registration.community_name ?? "");
+    setSensitiveConsent(false);
   }, [registration]);
 
   async function handleSave() {
@@ -98,6 +106,11 @@ export function RetreatPreinscriptionEdit({
           medicalConditions,
           medicalMedications,
           medicalDosage,
+          denomination,
+          communityName,
+          sensitiveConsent,
+          prevDenomination: registration.denomination,
+          prevCommunityName: registration.community_name,
         },
         async (payload: RetreatRegistrationUpdatePayload) => {
           const supabase = createClient();
@@ -132,8 +145,9 @@ export function RetreatPreinscriptionEdit({
         <DialogHeader>
           <DialogTitle>Editar preinscripción</DialogTitle>
           <DialogDescription>
-            Actualice los datos de contacto. El estado de pago y los
-            consentimientos no se modifican.
+            Actualice los datos de contacto. El estado de pago no se
+            modifica. Para guardar la denominación o la comunidad debe
+            aceptar el consentimiento de datos sensibles (Ley 1581).
           </DialogDescription>
         </DialogHeader>
         <form
@@ -255,6 +269,39 @@ export function RetreatPreinscriptionEdit({
               </div>
             </>
           )}
+          <div className="space-y-1">
+            <Label htmlFor="retreat-edit-denomination">
+              Denominación religiosa
+            </Label>
+            <Input
+              id="retreat-edit-denomination"
+              value={denomination}
+              onChange={(event) => setDenomination(event.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="retreat-edit-community">
+              Nombre de la comunidad
+            </Label>
+            <Input
+              id="retreat-edit-community"
+              value={communityName}
+              onChange={(event) => setCommunityName(event.target.value)}
+            />
+          </div>
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="retreat-edit-sensitive-consent"
+              checked={sensitiveConsent}
+              onCheckedChange={(checked) =>
+                setSensitiveConsent(checked === true)
+              }
+            />
+            <Label htmlFor="retreat-edit-sensitive-consent">
+              Acepto el tratamiento de mis datos religiosos (denominación y
+              comunidad) según la Ley 1581
+            </Label>
+          </div>
           <DialogFooter>
             <Button
               type="button"

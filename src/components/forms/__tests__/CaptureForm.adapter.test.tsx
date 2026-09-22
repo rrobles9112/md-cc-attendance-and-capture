@@ -247,3 +247,35 @@ describe("CaptureForm medical section", () => {
     );
   });
 });
+
+describe("CaptureForm user-facing submit errors", () => {
+  it("shows the adapter message for userFacing errors instead of the generic toast", async () => {
+    const { toast } = await import("sonner");
+    const friendly = "Ya existe una preinscripción con ese email/teléfono para este retiro.";
+    const submitAdapter = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error(friendly), { userFacing: true }));
+    render(<CaptureForm variant="retreat" submitAdapter={submitAdapter} />);
+    fillRequiredIdentity();
+    fireEvent.click(screen.getByRole("button", { name: RETREAT_SUBMIT_LABEL }));
+
+    await waitFor(() => expect(submitAdapter).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith(friendly),
+    );
+  });
+
+  it("keeps the generic toast for non-userFacing errors", async () => {
+    const { toast } = await import("sonner");
+    const { RETREAT_ERROR_MESSAGE } = await import("@/lib/retreat/constants");
+    const submitAdapter = vi.fn().mockRejectedValue(new Error("boom"));
+    render(<CaptureForm variant="retreat" submitAdapter={submitAdapter} />);
+    fillRequiredIdentity();
+    fireEvent.click(screen.getByRole("button", { name: RETREAT_SUBMIT_LABEL }));
+
+    await waitFor(() => expect(submitAdapter).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith(RETREAT_ERROR_MESSAGE),
+    );
+  });
+});

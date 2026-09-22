@@ -377,7 +377,13 @@ export function CaptureForm({
       resetForm();
       onSuccess?.();
     } catch (err) {
-      toast.error(copy.errorToast);
+      // Los adapters pueden lanzar errores user-facing (p. ej. duplicados
+      // mapeados en submit-adapter con flag userFacing); esos se muestran
+      // tal cual, el resto usa el mensaje genérico de la variante.
+      const userFacing =
+        err instanceof Error &&
+        (err as { userFacing?: unknown }).userFacing === true;
+      toast.error(userFacing ? err.message : copy.errorToast);
       console.error("Capture error:", err);
     } finally {
       setSubmitting(false);
