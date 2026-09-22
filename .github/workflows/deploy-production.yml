@@ -57,7 +57,11 @@ jobs:
         run: |
           # db push applies migrations only — seed.sql is local-only (config.toml [db.seed])
           supabase link --project-ref=$SUPABASE_PROJECT_REF
-          supabase db push --linked
+          # --include-all: timestamp migration 20260916214255 was applied to
+          # prod out-of-band and sorts after any 0xx name, so new sequential
+          # migrations would otherwise be rejected as "before" remote history.
+          # Safe: pending migrations are independent (CREATE OR REPLACE + GRANTs).
+          supabase db push --linked --include-all
 
   deploy:
     needs: migrate
