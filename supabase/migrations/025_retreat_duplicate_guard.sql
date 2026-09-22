@@ -1,4 +1,4 @@
--- 024_retreat_duplicate_guard.sql
+-- 025_retreat_duplicate_guard.sql
 -- Youth retreat pre-registration: duplicate-safe public RPC.
 -- Restates register_retreat_preinscription with the EXACT 023 signature and
 -- behavior, adding ONLY duplicate protection that mirrors
@@ -178,6 +178,6 @@ GRANT EXECUTE ON FUNCTION public.register_retreat_preinscription(
 COMMENT ON FUNCTION public.register_retreat_preinscription(
   text, text, text, date, text, boolean, boolean, text, text, boolean, text,
   boolean, text, text, text
-) IS 'Anon retreat preinscription insert; SECURITY DEFINER SET search_path=''''; fixed event key + Ley 1581 consent stamps on row; persists has_whatsapp / trimmed whatsapp_number (020) and opt-in medical details (023); duplicate-safe (024: EXISTS pre-check + unique_violation->already_preinscribed 23505, mirrors _for_member).';
+) IS 'Anon retreat preinscription insert; SECURITY DEFINER SET search_path=''''; fixed event key + Ley 1581 consent stamps on row; persists has_whatsapp / trimmed whatsapp_number (020) and opt-in medical details (023); duplicate-safe (025: EXISTS pre-check + unique_violation->already_preinscribed 23505, mirrors _for_member).';
 
 NOTIFY pgrst, 'reload schema';

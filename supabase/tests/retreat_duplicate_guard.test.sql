@@ -1,4 +1,4 @@
--- Retreat duplicate-guard tests (024)
+-- Retreat duplicate-guard tests (025)
 -- Verifies register_retreat_preinscription maps duplicates to the handled
 -- `already_preinscribed` 23505 instead of leaking the raw PG error on
 -- retreat_registrations_event_email_uidx / _phone_uidx.
