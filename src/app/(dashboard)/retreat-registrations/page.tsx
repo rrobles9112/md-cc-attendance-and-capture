@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Download, Pencil, Printer, Search, UserPlus } from "lucide-react";
+import { Download, Pencil, Printer, Search, Settings2, UserPlus } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -168,6 +168,33 @@ function countPaidByRegistration(
 
 type DeleteMode = "both" | "payments-only" | "registration-only";
 
+type TableDensity = "comoda" | "compacta";
+type TableHeightMode = "encuadrada" | "completa";
+
+type RetreatColumnVisibility = {
+  telefono: boolean;
+  estado: boolean;
+  email: boolean;
+  saldo: boolean;
+  porcentaje: boolean;
+  ultimoAbono: boolean;
+  salud: boolean;
+  transferir: boolean;
+};
+
+const DEFAULT_COLUMN_VISIBILITY: RetreatColumnVisibility = {
+  telefono: true,
+  estado: true,
+  email: true,
+  saldo: true,
+  porcentaje: true,
+  ultimoAbono: true,
+  salud: true,
+  transferir: true,
+};
+
+const RETREAT_TABLE_VIEW_STORAGE_KEY = "retiro-table-view-v1";
+
 function deleteSuccessToast(mode: DeleteMode): string {
   switch (mode) {
     case "both":
@@ -220,6 +247,11 @@ export default function RetreatRegistrationsPage() {
   const [paymentCountsByRegistration, setPaymentCountsByRegistration] =
     useState<Map<string, number>>(new Map());
   const [loadingExport, setLoadingExport] = useState(false);
+  const [tableViewOpen, setTableViewOpen] = useState(false);
+  const [columnVisibility, setColumnVisibility] =
+    useState<RetreatColumnVisibility>(DEFAULT_COLUMN_VISIBILITY);
+  const [density, setDensity] = useState<TableDensity>("comoda");
+  const [tableHeight, setTableHeight] = useState<TableHeightMode>("encuadrada");
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== "undefined" ? navigator.onLine : true,
   );
@@ -310,6 +342,40 @@ export default function RetreatRegistrationsPage() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(RETREAT_TABLE_VIEW_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<{
+        columnVisibility: RetreatColumnVisibility;
+        density: TableDensity;
+        tableHeight: TableHeightMode;
+      }>;
+      if (parsed.columnVisibility)
+        setColumnVisibility({
+          ...DEFAULT_COLUMN_VISIBILITY,
+          ...parsed.columnVisibility,
+        });
+      if (parsed.density === "comoda" || parsed.density === "compacta")
+        setDensity(parsed.density);
+      if (parsed.tableHeight === "encuadrada" || parsed.tableHeight === "completa")
+        setTableHeight(parsed.tableHeight);
+    } catch {
+      // Preferencia de vista corrupta: se conserva el default.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        RETREAT_TABLE_VIEW_STORAGE_KEY,
+        JSON.stringify({ columnVisibility, density, tableHeight }),
+      );
+    } catch {
+      // Almacenamiento no disponible: la vista sigue funcionando en memoria.
+    }
+  }, [columnVisibility, density, tableHeight]);
+
   // Duplicate pre-check when the transfer dialog opens: email exact match OR
   // phone containing the digits of the registration phone. The transfer RPC
   // remains the authoritative validation; query errors surface no warning.
@@ -362,10 +428,36 @@ export default function RetreatRegistrationsPage() {
   const canMutate = !!role && canMutateRetreatPreinscriptions(role);
   const canRecordPayments = !!role && canRecordRetreatPayments(role);
   const canDelete = canDeleteRetreatRegistration(role);
-  const mutationColSpan = canMutate ? 12 : 9;
+  // The empty-state row must span exactly the columns the header renders, so it
+  // follows the same predicates instead of a hardcoded count.
+  const visibleColumnCount =
+    1 + // Nombre
+    (columnVisibility.telefono ? 1 : 0) +
+    (columnVisibility.estado ? 1 : 0) +
+    (columnVisibility.email ? 1 : 0) +
+    1 + // Pagado
+    (columnVisibility.saldo ? 1 : 0) +
+    (columnVisibility.porcentaje ? 1 : 0) +
+    (columnVisibility.ultimoAbono ? 1 : 0) +
+    (columnVisibility.salud ? 1 : 0) +
+    (canMutate ? 1 : 0) +
+    (canMutate && columnVisibility.transferir ? 1 : 0) +
+    (canDelete ? 1 : 0);
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const fromDisplay = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const toDisplay = Math.min(page * pageSize, totalCount);
+  const isCompact = density === "compacta";
+  // shadcn's <Table> already wraps <table> in `div.relative.w-full.overflow-auto`.
+  // Scrolling here as well would create a second scroll port and leave
+  // `TableHeader sticky top-0` pinned to the inner, content-height div (so the
+  // header never sticks). The height constraint is therefore pushed onto that
+  // inner div, which stays the single scroll container for both axes.
+  const tableScrollClass =
+    tableHeight === "encuadrada"
+      ? "[&>div]:max-h-[calc(100dvh-340px)] [&>div]:min-h-[320px] [&>div]:overflow-auto"
+      : "";
+  const tableHeadCellClass = isCompact ? "h-9 px-1 text-xs" : undefined;
+  const tableBodyCellClass = isCompact ? "p-1 text-xs" : undefined;
 
   async function handleSaveCost() {
     if (savingCostRef.current) return;
@@ -850,41 +942,200 @@ export default function RetreatRegistrationsPage() {
         <Button variant="outline" size="sm" onClick={() => window.print()}>
           <Printer className="mr-2 h-4 w-4" /> Imprimir
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setTableViewOpen(true)}
+        >
+          <Settings2 className="mr-2 h-4 w-4" /> Vista de tabla
+        </Button>
       </div>
 
-      <div className="w-full max-w-full overflow-hidden rounded-lg border">
-        <Table>
-          <TableHeader>
+      <Dialog open={tableViewOpen} onOpenChange={setTableViewOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Vista de tabla</DialogTitle>
+            <DialogDescription>
+              Elegí qué columnas ver, densidad y altura. Se guarda en este
+              dispositivo y no afecta la exportación a Excel.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Columnas opcionales</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    ["telefono", "Teléfono"],
+                    ["estado", "Estado"],
+                    ["email", "Email"],
+                    ["saldo", "Saldo"],
+                    ["porcentaje", "% Pagado"],
+                    ["ultimoAbono", "Último abono"],
+                    ["salud", "Salud"],
+                    ["transferir", "Transferir"],
+                  ] as Array<[keyof RetreatColumnVisibility, string]>
+                ).map(([key, label]) => (
+                  <label
+                    key={key}
+                    className="flex cursor-pointer items-center gap-2 text-sm"
+                  >
+                    <Checkbox
+                      checked={columnVisibility[key]}
+                      onCheckedChange={(checked) =>
+                        setColumnVisibility((current) => ({
+                          ...current,
+                          [key]: checked === true,
+                        }))
+                      }
+                      aria-label={`Mostrar columna ${label}`}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="retreat-density">Densidad</Label>
+                <Select
+                  value={density}
+                  onValueChange={(v) => setDensity(v as TableDensity)}
+                >
+                  <SelectTrigger id="retreat-density">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="comoda">Cómoda</SelectItem>
+                    <SelectItem value="compacta">Compacta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="retreat-height">Altura</Label>
+                <Select
+                  value={tableHeight}
+                  onValueChange={(v) => setTableHeight(v as TableHeightMode)}
+                >
+                  <SelectTrigger id="retreat-height">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="encuadrada">
+                      Encuadrada en pantalla
+                    </SelectItem>
+                    <SelectItem value="completa">Completa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setColumnVisibility(DEFAULT_COLUMN_VISIBILITY);
+                  setDensity("comoda");
+                  setTableHeight("encuadrada");
+                }}
+              >
+                Restablecer vista
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="sm" onClick={() => setTableViewOpen(false)}>
+              Listo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div
+        className={`w-full max-w-full rounded-lg border ${tableScrollClass}`}
+      >
+        <Table className={isCompact ? "text-xs" : undefined}>
+          <TableHeader className="sticky top-0 z-20 bg-background shadow-sm">
             <TableRow>
-              <TableHead className="sticky left-0 z-10 bg-background">
+              <TableHead
+                className={`sticky left-0 z-30 bg-background ${tableHeadCellClass ?? ""}`}
+              >
                 Nombre
               </TableHead>
-              <TableHead className="hidden sm:table-cell">Teléfono</TableHead>
-              <TableHead className="hidden sm:table-cell">Estado</TableHead>
-              <TableHead className="hidden md:table-cell">Email</TableHead>
-              <TableHead className="whitespace-nowrap">Pagado</TableHead>
-              <TableHead className="hidden md:table-cell whitespace-nowrap">
-                Saldo
+              {columnVisibility.telefono && (
+                <TableHead
+                  className={`hidden sm:table-cell ${tableHeadCellClass ?? ""}`}
+                >
+                  Teléfono
+                </TableHead>
+              )}
+              {columnVisibility.estado && (
+                <TableHead
+                  className={`hidden sm:table-cell ${tableHeadCellClass ?? ""}`}
+                >
+                  Estado
+                </TableHead>
+              )}
+              {columnVisibility.email && (
+                <TableHead
+                  className={`hidden md:table-cell ${tableHeadCellClass ?? ""}`}
+                >
+                  Email
+                </TableHead>
+              )}
+              <TableHead
+                className={`whitespace-nowrap ${tableHeadCellClass ?? ""}`}
+              >
+                Pagado
               </TableHead>
-              <TableHead className="hidden lg:table-cell whitespace-nowrap">
-                % Pagado
-              </TableHead>
-              <TableHead className="hidden lg:table-cell whitespace-nowrap">
-                Último abono
-              </TableHead>
-              <TableHead className="hidden md:table-cell whitespace-nowrap">
-                Salud
-              </TableHead>
-              {canMutate && (
-                <TableHead className="w-56 md:w-64">Registrar pago</TableHead>
+              {columnVisibility.saldo && (
+                <TableHead
+                  className={`hidden md:table-cell whitespace-nowrap ${tableHeadCellClass ?? ""}`}
+                >
+                  Saldo
+                </TableHead>
+              )}
+              {columnVisibility.porcentaje && (
+                <TableHead
+                  className={`hidden lg:table-cell whitespace-nowrap ${tableHeadCellClass ?? ""}`}
+                >
+                  % Pagado
+                </TableHead>
+              )}
+              {columnVisibility.ultimoAbono && (
+                <TableHead
+                  className={`hidden lg:table-cell whitespace-nowrap ${tableHeadCellClass ?? ""}`}
+                >
+                  Último abono
+                </TableHead>
+              )}
+              {columnVisibility.salud && (
+                <TableHead
+                  className={`hidden md:table-cell whitespace-nowrap ${tableHeadCellClass ?? ""}`}
+                >
+                  Salud
+                </TableHead>
               )}
               {canMutate && (
-                <TableHead className="hidden md:table-cell w-40">
+                <TableHead
+                  className={`w-56 md:w-64 ${tableHeadCellClass ?? ""}`}
+                >
+                  Registrar pago
+                </TableHead>
+              )}
+              {canMutate && columnVisibility.transferir && (
+                <TableHead
+                  className={`hidden md:table-cell w-40 ${tableHeadCellClass ?? ""}`}
+                >
                   Transferir
                 </TableHead>
               )}
               {canDelete && (
-                <TableHead className="whitespace-nowrap">Acciones</TableHead>
+                <TableHead
+                  className={`whitespace-nowrap ${tableHeadCellClass ?? ""}`}
+                >
+                  Acciones
+                </TableHead>
               )}
             </TableRow>
           </TableHeader>
@@ -892,7 +1143,7 @@ export default function RetreatRegistrationsPage() {
             {registrations.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={mutationColSpan}
+                  colSpan={visibleColumnCount}
                   className="text-center text-muted-foreground"
                 >
                   No hay preinscripciones registradas
@@ -911,7 +1162,9 @@ export default function RetreatRegistrationsPage() {
                   : 0;
                 return (
                   <TableRow key={registration.id}>
-                    <TableCell className="sticky left-0 z-10 bg-background font-medium">
+                    <TableCell
+                      className={`sticky left-0 z-10 bg-background font-medium ${tableBodyCellClass ?? ""}`}
+                    >
                       {registration.name}
                       {registration.transferred_at && (
                         <Badge
@@ -940,38 +1193,51 @@ export default function RetreatRegistrationsPage() {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell whitespace-nowrap">
-                      {registration.phone}
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <Badge variant={statusBadgeVariant(registration.status)}>
-                        {retreatStatusLabel(registration.status)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell max-w-[200px] truncate">
-                      {registration.email}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
+                    {columnVisibility.telefono && (
+                      <TableCell className={`hidden sm:table-cell whitespace-nowrap ${tableBodyCellClass ?? ""}`}>
+                        {registration.phone}
+                      </TableCell>
+                    )}
+                    {columnVisibility.estado && (
+                      <TableCell className={`hidden sm:table-cell ${tableBodyCellClass ?? ""}`}>
+                        <Badge variant={statusBadgeVariant(registration.status)}>
+                          {retreatStatusLabel(registration.status)}
+                        </Badge>
+                      </TableCell>
+                    )}
+                    {columnVisibility.email && (
+                      <TableCell className={`hidden md:table-cell max-w-[200px] truncate ${tableBodyCellClass ?? ""}`}>
+                        {registration.email}
+                      </TableCell>
+                    )}
+                    <TableCell className={`whitespace-nowrap ${tableBodyCellClass ?? ""}`}>
                       {formatAmount(sumPaid)}
                     </TableCell>
-                    <TableCell className="hidden md:table-cell whitespace-nowrap">
-                      {remaining === null ? "—" : formatAmount(remaining)}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell whitespace-nowrap">
-                      {abonos.percent === null
-                        ? "—"
-                        : `${abonos.percent.toFixed(0)}%`}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell whitespace-nowrap">
-                      {abonos.last
-                        ? new Date(abonos.last).toLocaleDateString("es-CO", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                          })
-                        : "—"}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell max-w-[220px]">
+                    {columnVisibility.saldo && (
+                      <TableCell className={`hidden md:table-cell whitespace-nowrap ${tableBodyCellClass ?? ""}`}>
+                        {remaining === null ? "—" : formatAmount(remaining)}
+                      </TableCell>
+                    )}
+                    {columnVisibility.porcentaje && (
+                      <TableCell className={`hidden lg:table-cell whitespace-nowrap ${tableBodyCellClass ?? ""}`}>
+                        {abonos.percent === null
+                          ? "—"
+                          : `${abonos.percent.toFixed(0)}%`}
+                      </TableCell>
+                    )}
+                    {columnVisibility.ultimoAbono && (
+                      <TableCell className={`hidden lg:table-cell whitespace-nowrap ${tableBodyCellClass ?? ""}`}>
+                        {abonos.last
+                          ? new Date(abonos.last).toLocaleDateString("es-CO", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            })
+                          : "—"}
+                      </TableCell>
+                    )}
+                    {columnVisibility.salud && (
+                    <TableCell className={`hidden md:table-cell max-w-[220px] ${tableBodyCellClass ?? ""}`}>
                       {registration.has_medical_conditions ? (
                         <div className="space-y-1">
                           <Badge
@@ -1018,8 +1284,9 @@ export default function RetreatRegistrationsPage() {
                         </span>
                       )}
                     </TableCell>
+                    )}
                     {canMutate && (
-                      <TableCell className="w-56 md:w-64">
+                      <TableCell className={`w-56 md:w-64 ${tableBodyCellClass ?? ""}`}>
                         {registration.status === "inscrito" ? (
                           <Badge
                             variant="secondary"
@@ -1098,8 +1365,8 @@ export default function RetreatRegistrationsPage() {
                         )}
                       </TableCell>
                     )}
-                    {canMutate && (
-                      <TableCell className="hidden md:table-cell w-40">
+                    {canMutate && columnVisibility.transferir && (
+                      <TableCell className={`hidden md:table-cell w-40 ${tableBodyCellClass ?? ""}`}>
                         {registration.transferred_at ? (
                           <Badge
                             variant="secondary"
@@ -1145,7 +1412,7 @@ export default function RetreatRegistrationsPage() {
                       </TableCell>
                     )}
                     {canDelete && (
-                      <TableCell className="whitespace-nowrap">
+                      <TableCell className={`whitespace-nowrap ${tableBodyCellClass ?? ""}`}>
                         <div className="flex flex-wrap items-center gap-2">
                           <Button
                             variant="outline"
