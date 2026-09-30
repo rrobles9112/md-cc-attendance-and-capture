@@ -611,7 +611,7 @@ export default function RetreatRegistrationsPage() {
   }
 
   async function fetchAllRetreatRows(
-    inscritoOnly: boolean,
+    exportMode: "estado" | "inscritos" | "preinscritos" = "estado",
   ): Promise<RetreatRegistrationRow[]> {
     const supabase = createClient();
     const all: RetreatRegistrationRow[] = [];
@@ -624,10 +624,12 @@ export default function RetreatRegistrationsPage() {
         .eq("event_key", RETREAT_EVENT_KEY)
         .order("name", { ascending: true })
         .range(offset, offset + chunk - 1);
-      if (inscritoOnly) q = q.eq("status", "inscrito");
+      if (exportMode === "inscritos") q = q.eq("status", "inscrito");
+      else if (exportMode === "preinscritos")
+        q = q.eq("status", "preinscrito");
       else if (tab !== "todos") q = q.eq("status", tab);
       const sf = buildSearchOrFilter(searchDebounced);
-      if (sf && !inscritoOnly) q = q.or(sf);
+      if (sf && exportMode === "estado") q = q.or(sf);
       const { data, error } = (await q) as {
         data: RetreatRegistrationRow[] | null;
         error: unknown;
@@ -663,14 +665,16 @@ export default function RetreatRegistrationsPage() {
     return all;
   }
 
-  async function handleExport(inscritoOnly: boolean) {
+  async function handleExport(
+    exportMode: "estado" | "inscritos" | "preinscritos" = "estado",
+  ) {
     if (!isOnline || !hasSession) {
       toast.error("Requiere conexión");
       return;
     }
     setLoadingExport(true);
     try {
-      const regs = await fetchAllRetreatRows(inscritoOnly);
+      const regs = await fetchAllRetreatRows(exportMode);
       const ids = regs.map((r) => r.id);
       const pays = await fetchPaymentsChunked(ids);
       const byId = new Map<
@@ -701,12 +705,15 @@ export default function RetreatRegistrationsPage() {
         storedTotal,
         ids,
       );
-      const filename = inscritoOnly
-        ? `retiro-inscritos-${formatYYYYMMDD(new Date())}`
-        : `retiro-estado-pago-${formatYYYYMMDD(new Date())}`;
+      const filename =
+        exportMode === "inscritos"
+          ? `retiro-inscritos-${formatYYYYMMDD(new Date())}`
+          : exportMode === "preinscritos"
+            ? `retiro-preinscritos-${formatYYYYMMDD(new Date())}`
+            : `retiro-estado-pago-${formatYYYYMMDD(new Date())}`;
       exportRetreatToXLSX(rows, filename);
       toast.success(
-        `Reporte ${inscritoOnly ? "inscritos" : "estado de pago"} generado`,
+        `Reporte ${exportMode === "inscritos" ? "inscritos" : exportMode === "preinscritos" ? "preinscritos" : "estado de pago"} generado`,
       );
     } catch {
       toast.error("Error al generar el reporte");
@@ -818,7 +825,7 @@ export default function RetreatRegistrationsPage() {
           size="sm"
           disabled={!isOnline || !hasSession || loadingExport}
           title={!isOnline || !hasSession ? "Requiere conexión" : undefined}
-          onClick={() => void handleExport(false)}
+          onClick={() => void handleExport("estado")}
         >
           <Download className="mr-2 h-4 w-4" /> Exportar estado de pago
         </Button>
@@ -827,9 +834,18 @@ export default function RetreatRegistrationsPage() {
           size="sm"
           disabled={!isOnline || !hasSession || loadingExport}
           title={!isOnline || !hasSession ? "Requiere conexión" : undefined}
-          onClick={() => void handleExport(true)}
+          onClick={() => void handleExport("inscritos")}
         >
           <Download className="mr-2 h-4 w-4" /> Exportar inscritos
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!isOnline || !hasSession || loadingExport}
+          title={!isOnline || !hasSession ? "Requiere conexión" : undefined}
+          onClick={() => void handleExport("preinscritos")}
+        >
+          <Download className="mr-2 h-4 w-4" /> Exportar preinscritos
         </Button>
         <Button variant="outline" size="sm" onClick={() => window.print()}>
           <Printer className="mr-2 h-4 w-4" /> Imprimir
