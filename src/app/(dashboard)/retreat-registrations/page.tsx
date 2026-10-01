@@ -239,6 +239,8 @@ export default function RetreatRegistrationsPage() {
   const [editTarget, setEditTarget] = useState<RetreatRegistrationRow | null>(
     null,
   );
+  const [paymentTarget, setPaymentTarget] =
+    useState<RetreatRegistrationRow | null>(null);
   const [deleteTarget, setDeleteTarget] =
     useState<RetreatRegistrationRow | null>(null);
   const [deleteMode, setDeleteMode] = useState<DeleteMode>("both");
@@ -1054,11 +1056,11 @@ export default function RetreatRegistrationsPage() {
       <div
         className={`w-full max-w-full rounded-lg border ${tableScrollClass}`}
       >
-        <Table className={isCompact ? "text-xs" : undefined}>
+        <Table className={isCompact ? "min-w-[980px] text-xs" : "min-w-[980px]"}>
           <TableHeader className="sticky top-0 z-20 bg-background shadow-sm">
             <TableRow>
               <TableHead
-                className={`sticky left-0 z-30 bg-background ${tableHeadCellClass ?? ""}`}
+                className={`sticky left-0 z-30 min-w-[180px] bg-background shadow-[1px_0_0_0_hsl(var(--border))] ${tableHeadCellClass ?? ""}`}
               >
                 Nombre
               </TableHead>
@@ -1120,7 +1122,7 @@ export default function RetreatRegistrationsPage() {
                 <TableHead
                   className={`w-56 md:w-64 ${tableHeadCellClass ?? ""}`}
                 >
-                  Registrar pago
+                  Pagos
                 </TableHead>
               )}
               {canMutate && columnVisibility.transferir && (
@@ -1163,7 +1165,7 @@ export default function RetreatRegistrationsPage() {
                 return (
                   <TableRow key={registration.id}>
                     <TableCell
-                      className={`sticky left-0 z-10 bg-background font-medium ${tableBodyCellClass ?? ""}`}
+                      className={`sticky left-0 z-10 min-w-[180px] max-w-[220px] bg-background font-medium shadow-[1px_0_0_0_hsl(var(--border))] ${tableBodyCellClass ?? ""}`}
                     >
                       {registration.name}
                       {registration.transferred_at && (
@@ -1304,51 +1306,14 @@ export default function RetreatRegistrationsPage() {
                           </span>
                         ) : (
                           <div className="flex flex-col gap-2">
-                            <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-2">
-                              <Input
-                                type="number"
-                                min="0.01"
-                                step="0.01"
-                                value={amountDrafts[registration.id] ?? ""}
-                                onChange={(event) =>
-                                  setAmountDrafts((current) => ({
-                                    ...current,
-                                    [registration.id]: event.target.value,
-                                  }))
-                                }
-                                placeholder="Monto"
-                                aria-label={`Monto de cuota para ${registration.name}`}
-                                className="w-full md:min-w-0 md:flex-1"
-                              />
-                              <Button
-                                size="sm"
-                                disabled={savingPaymentId === registration.id}
-                                onClick={() =>
-                                  void handleRecordPayment(registration.id)
-                                }
-                                className="w-full md:w-auto"
-                              >
-                                Registrar pago
-                              </Button>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={
-                                  remaining === null ||
-                                  remaining <= 0 ||
-                                  !isOnline ||
-                                  !hasSession ||
-                                  savingPaymentId === registration.id
-                                }
-                                onClick={() =>
-                                  void handleCompleteRemaining(registration.id)
-                                }
-                              >
-                                Completar saldo
-                              </Button>
-                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => setPaymentTarget(registration)}
+                              aria-label={`Gestionar pagos de ${registration.name}`}
+                              className="w-full md:w-auto"
+                            >
+                              Gestionar pagos
+                            </Button>
                             <div className="space-y-1">
                               <div className="h-1.5 w-full rounded bg-secondary">
                                 <div
@@ -1532,6 +1497,121 @@ export default function RetreatRegistrationsPage() {
               onClick={() => void handleTransfer()}
             >
               {transferring ? "Transfiriendo..." : "Transferir"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={paymentTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setPaymentTarget(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Gestionar pagos</DialogTitle>
+            <DialogDescription>
+              {paymentTarget !== null && (
+                <>
+                  Registrá abonos para{" "}
+                  <span className="font-medium">{paymentTarget.name}</span>.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {paymentTarget !== null &&
+            (() => {
+              const live =
+                registrations.find((r) => r.id === paymentTarget.id) ??
+                paymentTarget;
+              const sum =
+                paidByRegistration.get(paymentTarget.id) ?? 0;
+              const rem = remainingBalance(parsedTotal, sum);
+              const isPaid = live.status === "inscrito";
+              return (
+                <div className="space-y-4">
+                  <div className="space-y-1 text-sm">
+                    <p>
+                      <strong>Pagado:</strong> {formatAmount(sum)} de{" "}
+                      {parsedTotal ? formatAmount(parsedTotal) : "—"}
+                    </p>
+                    <p>
+                      <strong>Saldo:</strong>{" "}
+                      {rem === null ? "—" : formatAmount(rem)}
+                    </p>
+                  </div>
+                  {isPaid ? (
+                    <p className="text-sm text-muted-foreground">
+                      Ya está pagado en su totalidad — no se permiten más abonos.
+                    </p>
+                  ) : paymentsBlocked ? (
+                    <p className="text-sm text-muted-foreground">
+                      Pagos bloqueados hasta que se configure el costo total.
+                    </p>
+                  ) : !canRecordPayments ? (
+                    <p className="text-sm text-muted-foreground">—</p>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor={`pago-monto-${paymentTarget.id}`}
+                        >
+                          Monto del abono (COP)
+                        </Label>
+                        <Input
+                          id={`pago-monto-${paymentTarget.id}`}
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={amountDrafts[paymentTarget.id] ?? ""}
+                          onChange={(event) =>
+                            setAmountDrafts((current) => ({
+                              ...current,
+                              [paymentTarget.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Monto"
+                          aria-label={`Monto de cuota para ${paymentTarget.name}`}
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          disabled={
+                            savingPaymentId === paymentTarget.id
+                          }
+                          onClick={() =>
+                            void handleRecordPayment(paymentTarget.id)
+                          }
+                        >
+                          Registrar pago
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={
+                            rem === null ||
+                            rem <= 0 ||
+                            !isOnline ||
+                            !hasSession ||
+                            savingPaymentId === paymentTarget.id
+                          }
+                          onClick={() =>
+                            void handleCompleteRemaining(paymentTarget.id)
+                          }
+                        >
+                          Completar saldo
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaymentTarget(null)}>
+              Cerrar
             </Button>
           </DialogFooter>
         </DialogContent>
