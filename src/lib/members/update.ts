@@ -7,6 +7,9 @@ export type MemberUpdateInput = {
   birthday: string;
   legalRepName: string;
   hasWhatsapp: boolean;
+  emergencyContactName?: string;
+  emergencyContactRelationship?: string;
+  emergencyContactPhone?: string;
 };
 
 export type MemberUpdatePayload = {
@@ -18,6 +21,9 @@ export type MemberUpdatePayload = {
   is_minor: boolean;
   legal_rep_name: string | null;
   has_whatsapp: boolean;
+  emergency_contact_name: string | null;
+  emergency_contact_relationship: string | null;
+  emergency_contact_phone: string | null;
   updated_at: string;
 };
 
@@ -57,6 +63,31 @@ export function buildMemberUpdate(input: MemberUpdateInput): MemberUpdateResult 
     return { ok: false, error: minorCheck.error ?? "El representante legal es obligatorio" };
   }
 
+  const emergencyName = (input.emergencyContactName ?? "").trim();
+  const emergencyRelationship = (input.emergencyContactRelationship ?? "").trim();
+  const emergencyPhone = (input.emergencyContactPhone ?? "").trim();
+  const emergencyStarted =
+    emergencyName !== "" ||
+    emergencyRelationship !== "" ||
+    emergencyPhone !== "";
+  if (emergencyStarted) {
+    if (emergencyName === "") {
+      return { ok: false, error: "Indique el nombre del contacto de emergencia" };
+    }
+    if (emergencyRelationship === "") {
+      return {
+        ok: false,
+        error: "Indique el parentesco del contacto de emergencia",
+      };
+    }
+    if (emergencyPhone === "") {
+      return {
+        ok: false,
+        error: "Indique el teléfono del contacto de emergencia",
+      };
+    }
+  }
+
   return {
     ok: true,
     payload: {
@@ -68,6 +99,9 @@ export function buildMemberUpdate(input: MemberUpdateInput): MemberUpdateResult 
       is_minor: isMinor,
       legal_rep_name: isMinor ? legalRep : null,
       has_whatsapp: input.hasWhatsapp,
+      emergency_contact_name: emergencyName || null,
+      emergency_contact_relationship: emergencyRelationship || null,
+      emergency_contact_phone: emergencyPhone || null,
       updated_at: new Date().toISOString(),
     },
   };

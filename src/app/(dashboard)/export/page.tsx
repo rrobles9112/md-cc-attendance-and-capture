@@ -159,6 +159,11 @@ export default function ExportPage() {
           'Es menor': member.is_minor ? 'Sí' : 'No',
           'Representante legal': member.legal_rep_name ?? 'N/A',
           WhatsApp: member.has_whatsapp ? 'Sí' : 'No',
+          'Contacto de emergencia': member.emergency_contact_name ?? 'N/A',
+          'Parentesco del contacto de emergencia':
+            member.emergency_contact_relationship ?? 'N/A',
+          'Celular del contacto de emergencia':
+            member.emergency_contact_phone ?? 'N/A',
           'Consentimiento general': member.consent_recorded ? 'Sí' : 'No',
           'Consentimiento sensible': member.sensitive_consent_recorded ? 'Sí' : 'No',
           'Fecha de registro': member.created_at,

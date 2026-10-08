@@ -23,22 +23,25 @@ Estrategia ADITIVA (decidida con el usuario): el representante legal para menore
 - Aditivo: nada de eliminar o renombrar `legal_rep_name` / `has_whatsapp` / `whatsapp_number`; los RPCs existentes se restatean con el mismo cuerpo + params trailing con DEFAULT NULL (patrón 023).
 - Consentimientos Ley 1581 sin cambios.
 - Writes single-threaded; un writer por tanda.
+- Delegación de subagentes NO disponible en esta sesión de provider (runtime free tier rechaza Task) → ejecución inline con disclamer; triggers de mapeo/escritura igualmente aplicados vía lotes acotados.
 
 ## Acceptance criteria
 
 - Los 3 campos persisten vía `register_retreat_preinscription`, `register_retreat_preinscription_for_member`, el update de preinscripción (PostgREST) y la ruta Dexie de miembros.
 - Visibles y editables en: form público /retiro, Nueva preinscripción, Editar preinscripción, captura de miembros, edición de miembros.
 - Presentes en exports (retreat report + members export).
-- `npx tsc --noEmit` y `npx vitest run` en verde; test SQL del caso nuevo pasa.
+- `npx tsc --noEmit` y `npx vitest run` en verde; test SQL del caso nuevo pasa en CI.
 
 ## Tasks
 
-- [ ] T1 — Migración 026: columnas retreat_registrations + members, ambos RPC restateados con `p_emergency_contact_*`. Route: inline (delegación no disponible en esta sesión de provider; trigger: archivo único, mecánico sobre precedente 023).
-- [ ] T2 — CaptureForm: payload + estado + validación + card en ambas variantes; ruta Dexie de miembros escribe los 3 campos. Route: inline; trigger writer: 2+ archivos no triviales (delegación no disponible → inline con disclamer).
-- [ ] T3 — Retreat: submit-adapter (2 adapters) + update.ts + RetreatPreinscriptionEdit (inputs + select de parentesco).
-- [ ] T4 — Members: update.ts + members/page.tsx (diálogo edición) + export/page.tsx.
-- [ ] T5 — queries.ts SELECT + export.ts (reporte retreat) + tests vitest/SQL + `tsc` + `vitest run`.
+- [x] T1 — Migración 026: columnas retreat_registrations + members, ambos RPC restateados con `p_emergency_contact_*`. Commit `6f6655a`. Route: inline (delegación no disponible). Nota: verificado contra las definiciones vigentes (025 anon, 023 member).
+- [x] T2 — CaptureForm: payload + estado + validación + card en ambas variantes; ruta Dexie de miembros escribe los 3 campos. Commit `23f1db1`. RED primero (`CaptureForm.emergency-contact.test.tsx`, 4 fallas → GREEN). Aprendizaje: label "Teléfono…" colisionaba con `getByLabelText(/Teléfono/)` de tests existentes → renombrado a "Celular…" (coincide con el requisito de mobile).
+- [x] T3 — Retreat: submit-adapter (2 adapters) + update.ts + RetreatPreinscriptionEdit (inputs + select de parentesco) + queries SELECT + row type del dashboard. Commit `a73faaa`. RED en update.test/adapter tests/queries.test → GREEN. update.ts y members/update.ts devuelven UN error a la vez (primer campo faltante).
+- [x] T4 — Members: update.ts + members/page.tsx (diálogo edición) + export/page.tsx. RED en members/__tests__/update.test.ts → GREEN. Commit pendiente junto a T5.
+- [x] T5 — queries.ts SELECT + export.ts (reporte retreat) + tests vitest/SQL. `vitest run` 421/421 OK, `tsc --noEmit` OK. SQL test (`retreat_rls.test.sql`, bloque 026) NO ejecutado localmente: requiere Docker (`supabase start`), corre en CI. Commit pendiente.
 
 ## Progress
 
-(sin commits aún)
+- Commits: `6f6655a` (T1), `23f1db1` (T2), `a73faaa` (T3), pendiente T4+T5.
+- Verificación: suite completa 421/421 verde; tsc limpio; eslint sobre archivos cambiados: pendiente de correr; SQL: solo CI.
+- Siguiente: commit T4/T5, `gentle-ai review assess` sobre el rango commiteado (RDD), y decisión de entrega (push/PR) del usuario.

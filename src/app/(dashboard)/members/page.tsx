@@ -84,6 +84,10 @@ export default function MembersPage() {
   const [editBirthday, setEditBirthday] = useState("");
   const [editLegalRep, setEditLegalRep] = useState("");
   const [editHasWhatsapp, setEditHasWhatsapp] = useState(false);
+  const [editEmergencyName, setEditEmergencyName] = useState("");
+  const [editEmergencyRelationship, setEditEmergencyRelationship] =
+    useState("");
+  const [editEmergencyPhone, setEditEmergencyPhone] = useState("");
 
   const loadMembers = useCallback(async () => {
     const allMembers = await db.members
@@ -165,6 +169,9 @@ export default function MembersPage() {
     setEditBirthday(member.birthday ?? "");
     setEditLegalRep(member.legal_rep_name ?? "");
     setEditHasWhatsapp(member.has_whatsapp);
+    setEditEmergencyName(member.emergency_contact_name ?? "");
+    setEditEmergencyRelationship(member.emergency_contact_relationship ?? "");
+    setEditEmergencyPhone(member.emergency_contact_phone ?? "");
     const sm = await db.social_media
       .where("member_id")
       .equals(member.id)
@@ -204,6 +211,9 @@ export default function MembersPage() {
       birthday: editBirthday,
       legalRepName: editLegalRep,
       hasWhatsapp: editHasWhatsapp,
+      emergencyContactName: editEmergencyName,
+      emergencyContactRelationship: editEmergencyRelationship,
+      emergencyContactPhone: editEmergencyPhone,
     });
     if (!result.ok) {
       toast.error(result.error);
@@ -220,6 +230,11 @@ export default function MembersPage() {
         is_minor: result.payload.is_minor,
         legal_rep_name: result.payload.legal_rep_name ?? undefined,
         has_whatsapp: result.payload.has_whatsapp,
+        emergency_contact_name: result.payload.emergency_contact_name ?? undefined,
+        emergency_contact_relationship:
+          result.payload.emergency_contact_relationship ?? undefined,
+        emergency_contact_phone:
+          result.payload.emergency_contact_phone ?? undefined,
         updated_at: result.payload.updated_at,
       });
       await enqueue("members", selectedMember.id, "update", result.payload);
@@ -229,6 +244,11 @@ export default function MembersPage() {
         ...result.payload,
         birthday: result.payload.birthday ?? undefined,
         legal_rep_name: result.payload.legal_rep_name ?? undefined,
+        emergency_contact_name: result.payload.emergency_contact_name ?? undefined,
+        emergency_contact_relationship:
+          result.payload.emergency_contact_relationship ?? undefined,
+        emergency_contact_phone:
+          result.payload.emergency_contact_phone ?? undefined,
       });
       setEditing(false);
       await loadMembers();
@@ -537,6 +557,46 @@ export default function MembersPage() {
                     />
                     Tiene WhatsApp
                   </label>
+                  <div className="space-y-1">
+                    <Label htmlFor="member-edit-emergency-name">
+                      Nombre del contacto de emergencia
+                    </Label>
+                    <Input
+                      id="member-edit-emergency-name"
+                      value={editEmergencyName}
+                      onChange={(e) => setEditEmergencyName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="member-edit-emergency-relationship">
+                      Parentesco del contacto de emergencia
+                    </Label>
+                    <select
+                      id="member-edit-emergency-relationship"
+                      value={editEmergencyRelationship}
+                      onChange={(e) =>
+                        setEditEmergencyRelationship(e.target.value)
+                      }
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                    >
+                      <option value="">Seleccione…</option>
+                      <option value="madre">Madre</option>
+                      <option value="padre">Padre</option>
+                      <option value="familiar">Familiar cercano</option>
+                      <option value="otro">Otro</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="member-edit-emergency-phone">
+                      Celular del contacto de emergencia
+                    </Label>
+                    <Input
+                      id="member-edit-emergency-phone"
+                      type="tel"
+                      value={editEmergencyPhone}
+                      onChange={(e) => setEditEmergencyPhone(e.target.value)}
+                    />
+                  </div>
                   <div className="flex gap-2">
                     <Button onClick={() => void handleSaveMemberEdit()} disabled={savingEdit}>
                       {savingEdit ? "Guardando..." : "Guardar"}
