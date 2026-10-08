@@ -52,6 +52,9 @@ const adultPayload: CaptureSubmitPayload = {
   medicalConditions: "Asma",
   medicalMedications: "Salbutamol",
   medicalDosage: "Cada 8 horas",
+  emergencyContactName: "",
+  emergencyContactRelationship: "",
+  emergencyContactPhone: "",
 };
 
 describe("retreat constants", () => {
@@ -142,6 +145,9 @@ describe("submitRetreatPreinscription", () => {
       medicalConditions: "   ",
       medicalMedications: "",
       medicalDosage: "  ",
+      emergencyContactName: "",
+      emergencyContactRelationship: "",
+      emergencyContactPhone: "",
     });
 
     expect(rpcMock).toHaveBeenCalledTimes(1);

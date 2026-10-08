@@ -29,6 +29,9 @@ const basePayload: CaptureSubmitPayload = {
   medicalConditions: "",
   medicalMedications: "",
   medicalDosage: "",
+  emergencyContactName: "",
+  emergencyContactRelationship: "",
+  emergencyContactPhone: "",
 };
 
 describe("submitRetreatPreinscriptionForMember adapter", () => {

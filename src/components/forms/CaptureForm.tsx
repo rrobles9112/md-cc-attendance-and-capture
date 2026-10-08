@@ -73,6 +73,9 @@ export type CaptureSubmitPayload = {
   medicalConditions: string;
   medicalMedications: string;
   medicalDosage: string;
+  emergencyContactName: string;
+  emergencyContactRelationship: string;
+  emergencyContactPhone: string;
 };
 
 export type CaptureFormInitialValues = Partial<CaptureSubmitPayload>;
@@ -97,6 +100,7 @@ function captureFormConfig(variant: CaptureFormVariant) {
         showWhatsappCard: true,
         showSocialMediaCard: true,
         showMedicalCard: false,
+        showEmergencyContactCard: true,
       };
     case "retreat":
       return {
@@ -109,6 +113,7 @@ function captureFormConfig(variant: CaptureFormVariant) {
         showWhatsappCard: true,
         showSocialMediaCard: false,
         showMedicalCard: true,
+        showEmergencyContactCard: true,
       };
     default: {
       const exhaustive: never = variant;
@@ -143,6 +148,11 @@ export function CaptureForm({
   const [medicalConditions, setMedicalConditions] = useState("");
   const [medicalMedications, setMedicalMedications] = useState("");
   const [medicalDosage, setMedicalDosage] = useState("");
+
+  const [emergencyContactName, setEmergencyContactName] = useState("");
+  const [emergencyContactRelationship, setEmergencyContactRelationship] =
+    useState("");
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState("");
 
   const [showSocialMedia, setShowSocialMedia] = useState(false);
   const [socialMedia, setSocialMedia] = useState<SocialMediaEntry[]>([]);
@@ -222,6 +232,27 @@ export function CaptureForm({
       newErrors.medical = "Indique las condiciones médicas.";
     }
 
+    const emergencyName = emergencyContactName.trim();
+    const emergencyRelationship = emergencyContactRelationship.trim();
+    const emergencyPhone = emergencyContactPhone.trim();
+    const emergencyStarted =
+      emergencyName !== "" ||
+      emergencyRelationship !== "" ||
+      emergencyPhone !== "";
+    if (emergencyStarted) {
+      if (emergencyName === "") {
+        newErrors.emergencyName = "Indique el nombre del contacto de emergencia.";
+      }
+      if (emergencyRelationship === "") {
+        newErrors.emergencyRelationship =
+          "Indique el parentesco del contacto de emergencia.";
+      }
+      if (emergencyPhone === "") {
+        newErrors.emergencyPhone =
+          "Indique el teléfono del contacto de emergencia.";
+      }
+    }
+
     if (isMinor) {
       const minorResult = validateMinorFields(isMinor, legalRepName);
       if (!minorResult.valid) {
@@ -256,6 +287,9 @@ export function CaptureForm({
           ? medicalMedications.trim()
           : "",
         medicalDosage: hasMedicalConditions ? medicalDosage.trim() : "",
+        emergencyContactName: emergencyName,
+        emergencyContactRelationship: emergencyRelationship,
+        emergencyContactPhone: emergencyPhone,
       };
 
       if (submitAdapter) {
@@ -292,6 +326,9 @@ export function CaptureForm({
         is_minor: isMinor,
         legal_rep_name: isMinor ? legalRepName.trim() : undefined,
         has_whatsapp: hasWhatsapp,
+        emergency_contact_name: emergencyName || undefined,
+        emergency_contact_relationship: emergencyRelationship || undefined,
+        emergency_contact_phone: emergencyPhone || undefined,
         consent_recorded: true,
         sensitive_consent_recorded: sensitiveConsent,
         duplicate_flag: hasDuplicate,
@@ -311,6 +348,9 @@ export function CaptureForm({
         is_minor: isMinor,
         legal_rep_name: isMinor ? legalRepName.trim() : null,
         has_whatsapp: hasWhatsapp,
+        emergency_contact_name: emergencyName || null,
+        emergency_contact_relationship: emergencyRelationship || null,
+        emergency_contact_phone: emergencyPhone || null,
         consent_recorded: true,
         sensitive_consent_recorded: sensitiveConsent,
         duplicate_flag: hasDuplicate,
@@ -407,6 +447,9 @@ export function CaptureForm({
     setMedicalConditions("");
     setMedicalMedications("");
     setMedicalDosage("");
+    setEmergencyContactName("");
+    setEmergencyContactRelationship("");
+    setEmergencyContactPhone("");
     setShowSocialMedia(false);
     setSocialMedia([]);
     setErrors({});
@@ -527,6 +570,78 @@ export function CaptureForm({
                 onChange={(e) => setAdditionalWhatsapp(e.target.value)}
                 placeholder="+573009876543"
               />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {copy.showEmergencyContactCard && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Contacto de emergencia</CardTitle>
+            <CardDescription>
+              Persona a contactar si no responde el número principal (opcional)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="emergencyContactName">
+                Nombre del contacto de emergencia
+              </Label>
+              <Input
+                id="emergencyContactName"
+                value={emergencyContactName}
+                onChange={(e) => setEmergencyContactName(e.target.value)}
+                placeholder="Rosa Pérez"
+                className={errors.emergencyName ? "border-destructive" : ""}
+              />
+              {errors.emergencyName && (
+                <p className="text-xs text-destructive">
+                  {errors.emergencyName}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="emergencyContactRelationship">Parentesco</Label>
+              <select
+                id="emergencyContactRelationship"
+                value={emergencyContactRelationship}
+                onChange={(e) =>
+                  setEmergencyContactRelationship(e.target.value)
+                }
+                className={`flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm ${
+                  errors.emergencyRelationship ? "border-destructive" : ""
+                }`}
+              >
+                <option value="">Seleccione…</option>
+                <option value="madre">Madre</option>
+                <option value="padre">Padre</option>
+                <option value="familiar">Familiar cercano</option>
+                <option value="otro">Otro</option>
+              </select>
+              {errors.emergencyRelationship && (
+                <p className="text-xs text-destructive">
+                  {errors.emergencyRelationship}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="emergencyContactPhone">
+                Celular del contacto de emergencia
+              </Label>
+              <Input
+                id="emergencyContactPhone"
+                type="tel"
+                value={emergencyContactPhone}
+                onChange={(e) => setEmergencyContactPhone(e.target.value)}
+                placeholder="+573009876543"
+                className={errors.emergencyPhone ? "border-destructive" : ""}
+              />
+              {errors.emergencyPhone && (
+                <p className="text-xs text-destructive">
+                  {errors.emergencyPhone}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
