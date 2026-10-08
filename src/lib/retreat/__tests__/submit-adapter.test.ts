@@ -94,6 +94,9 @@ describe("submitRetreatPreinscription", () => {
       p_medical_conditions: "Asma",
       p_medical_medications: "Salbutamol",
       p_medical_dosage: "Cada 8 horas",
+      p_emergency_contact_name: null,
+      p_emergency_contact_relationship: null,
+      p_emergency_contact_phone: null,
     });
     expect(fromMock).not.toHaveBeenCalled();
   });
@@ -124,6 +127,9 @@ describe("submitRetreatPreinscription", () => {
       "p_community_name",
       "p_denomination",
       "p_email",
+      "p_emergency_contact_name",
+      "p_emergency_contact_phone",
+      "p_emergency_contact_relationship",
       "p_general_consent",
       "p_has_medical_conditions",
       "p_has_whatsapp",
@@ -248,5 +254,30 @@ describe("submitRetreatPreinscription duplicate mapping (024)", () => {
       "general consent is required",
     );
     expect(isUserFacingError(caught)).toBe(false);
+  });
+});
+
+describe("submitRetreatPreinscription emergency contact", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    rpcMock.mockResolvedValue({ data: "id", error: null });
+  });
+
+  it("sends trimmed p_emergency_contact_* arguments", async () => {
+    await submitRetreatPreinscription({
+      ...adultPayload,
+      emergencyContactName: " Rosa Pérez ",
+      emergencyContactRelationship: "madre",
+      emergencyContactPhone: " 3009998877 ",
+    });
+
+    expect(rpcMock).toHaveBeenCalledWith(
+      "register_retreat_preinscription",
+      expect.objectContaining({
+        p_emergency_contact_name: "Rosa Pérez",
+        p_emergency_contact_relationship: "madre",
+        p_emergency_contact_phone: "3009998877",
+      }),
+    );
   });
 });

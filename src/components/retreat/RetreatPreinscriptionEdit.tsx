@@ -33,6 +33,9 @@ export type RetreatRegistrationEditValues = {
   medical_conditions: string | null;
   medical_medications: string | null;
   medical_dosage: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_relationship: string | null;
+  emergency_contact_phone: string | null;
   denomination: string | null;
   community_name: string | null;
 };
@@ -66,6 +69,10 @@ export function RetreatPreinscriptionEdit({
   const [medicalConditions, setMedicalConditions] = useState("");
   const [medicalMedications, setMedicalMedications] = useState("");
   const [medicalDosage, setMedicalDosage] = useState("");
+  const [emergencyContactName, setEmergencyContactName] = useState("");
+  const [emergencyContactRelationship, setEmergencyContactRelationship] =
+    useState("");
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState("");
   const [denomination, setDenomination] = useState("");
   const [communityName, setCommunityName] = useState("");
   const [sensitiveConsent, setSensitiveConsent] = useState(false);
@@ -84,6 +91,11 @@ export function RetreatPreinscriptionEdit({
     setMedicalConditions(registration.medical_conditions ?? "");
     setMedicalMedications(registration.medical_medications ?? "");
     setMedicalDosage(registration.medical_dosage ?? "");
+    setEmergencyContactName(registration.emergency_contact_name ?? "");
+    setEmergencyContactRelationship(
+      registration.emergency_contact_relationship ?? "",
+    );
+    setEmergencyContactPhone(registration.emergency_contact_phone ?? "");
     setDenomination(registration.denomination ?? "");
     setCommunityName(registration.community_name ?? "");
     setSensitiveConsent(false);
@@ -106,6 +118,9 @@ export function RetreatPreinscriptionEdit({
           medicalConditions,
           medicalMedications,
           medicalDosage,
+          emergencyContactName,
+          emergencyContactRelationship,
+          emergencyContactPhone,
           denomination,
           communityName,
           sensitiveConsent,
@@ -219,6 +234,46 @@ export function RetreatPreinscriptionEdit({
               value={whatsappNumber}
               onChange={(event) => setWhatsappNumber(event.target.value)}
               autoComplete="tel"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="retreat-edit-emergency-name">
+              Nombre del contacto de emergencia
+            </Label>
+            <Input
+              id="retreat-edit-emergency-name"
+              value={emergencyContactName}
+              onChange={(event) => setEmergencyContactName(event.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="retreat-edit-emergency-relationship">
+              Parentesco del contacto de emergencia
+            </Label>
+            <select
+              id="retreat-edit-emergency-relationship"
+              value={emergencyContactRelationship}
+              onChange={(event) =>
+                setEmergencyContactRelationship(event.target.value)
+              }
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+            >
+              <option value="">Seleccione…</option>
+              <option value="madre">Madre</option>
+              <option value="padre">Padre</option>
+              <option value="familiar">Familiar cercano</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="retreat-edit-emergency-phone">
+              Celular del contacto de emergencia
+            </Label>
+            <Input
+              id="retreat-edit-emergency-phone"
+              type="tel"
+              value={emergencyContactPhone}
+              onChange={(event) => setEmergencyContactPhone(event.target.value)}
             />
           </div>
           <div className="flex items-center gap-2">

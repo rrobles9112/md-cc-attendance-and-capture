@@ -60,6 +60,9 @@ const sample = {
   medical_conditions: null as string | null,
   medical_medications: null as string | null,
   medical_dosage: null as string | null,
+  emergency_contact_name: null as string | null,
+  emergency_contact_relationship: null as string | null,
+  emergency_contact_phone: null as string | null,
   denomination: null as string | null,
   community_name: null as string | null,
 };
@@ -247,5 +250,65 @@ describe("RetreatPreinscriptionEdit religious fields (PR3)", () => {
       ),
     );
     expect(onSaved).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("RetreatPreinscriptionEdit emergency contact", () => {
+  beforeEach(() => {
+    installPolyfills();
+    vi.clearAllMocks();
+    mockUpdate.mockReturnValue({ eq: mockEq });
+    mockEq.mockReturnValue({ select: mockSelect });
+    mockSelect.mockResolvedValue({ data: [{ id: "reg-1" }], error: null });
+  });
+
+  it("prefills and saves the emergency contact fields", async () => {
+    const onSaved = vi.fn();
+    render(
+      <RetreatPreinscriptionEdit
+        registration={{
+          ...sample,
+          emergency_contact_name: "Rosa Pérez",
+          emergency_contact_relationship: "madre",
+          emergency_contact_phone: "3009998877",
+        }}
+        open
+        onOpenChange={vi.fn()}
+        onSaved={onSaved}
+      />,
+    );
+    expect(
+      (screen.getByLabelText("Nombre del contacto de emergencia") as HTMLInputElement)
+        .value,
+    ).toBe("Rosa Pérez");
+    expect(
+      (
+        screen.getByLabelText(
+          "Parentesco del contacto de emergencia",
+        ) as HTMLSelectElement
+      ).value,
+    ).toBe("madre");
+
+    fireEvent.change(
+      screen.getByLabelText("Nombre del contacto de emergencia"),
+      { target: { value: "Rosa María Pérez" } },
+    );
+    fireEvent.change(screen.getByLabelText("Parentesco del contacto de emergencia"), {
+      target: { value: "padre" },
+    });
+    fireEvent.change(screen.getByLabelText("Celular del contacto de emergencia"), {
+      target: { value: "3001112233" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emergency_contact_name: "Rosa María Pérez",
+        emergency_contact_relationship: "padre",
+        emergency_contact_phone: "3001112233",
+      }),
+    );
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
   });
 });

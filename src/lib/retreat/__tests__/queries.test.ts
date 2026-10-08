@@ -48,6 +48,15 @@ describe("retreat/queries — build query + abonos aggregates (PR2 T-005/T-013)"
     expect(RETREAT_REGISTRATIONS_SELECT).toContain("medical_conditions");
     expect(RETREAT_REGISTRATIONS_SELECT).toContain("medical_medications");
     expect(RETREAT_REGISTRATIONS_SELECT).toContain("medical_dosage");
+    expect(RETREAT_REGISTRATIONS_SELECT).toContain(
+      "emergency_contact_name",
+    );
+    expect(RETREAT_REGISTRATIONS_SELECT).toContain(
+      "emergency_contact_relationship",
+    );
+    expect(RETREAT_REGISTRATIONS_SELECT).toContain(
+      "emergency_contact_phone",
+    );
     expect(RETREAT_REGISTRATIONS_SELECT).toContain("denomination");
     expect(RETREAT_REGISTRATIONS_SELECT).toContain("community_name");
     expect(RETREAT_REGISTRATIONS_SELECT).toContain(

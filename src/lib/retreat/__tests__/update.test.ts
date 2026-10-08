@@ -35,6 +35,9 @@ describe("buildRetreatRegistrationUpdate", () => {
       medical_conditions: "Asma",
       medical_medications: "Salbutamol",
       medical_dosage: "Cada 8 horas",
+      emergency_contact_name: null,
+      emergency_contact_relationship: null,
+      emergency_contact_phone: null,
       denomination: null,
       community_name: null,
       sensitive_consent_accepted_at: null,
@@ -340,5 +343,76 @@ describe("buildRetreatRegistrationUpdate religious fields (PR3)", () => {
     if (!result.ok) return;
     expect(result.payload.denomination).toBeNull();
     expect(result.payload.community_name).toBeNull();
+  });
+});
+
+describe("buildRetreatRegistrationUpdate emergency contact", () => {
+  const base = {
+    name: "Ana Pérez",
+    phone: "3001234567",
+    email: "ana@example.com",
+    birthday: "2000-01-15",
+    legalRepName: "",
+    hasWhatsapp: false,
+    whatsappNumber: "",
+    hasMedicalConditions: false,
+    medicalConditions: "",
+    medicalMedications: "",
+    medicalDosage: "",
+  };
+
+  it("persists a complete emergency contact, trimmed", () => {
+    const result = buildRetreatRegistrationUpdate({
+      ...base,
+      emergencyContactName: "  Rosa Pérez ",
+      emergencyContactRelationship: " madre ",
+      emergencyContactPhone: " 3009998877 ",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.payload.emergency_contact_name).toBe("Rosa Pérez");
+    expect(result.payload.emergency_contact_relationship).toBe("madre");
+    expect(result.payload.emergency_contact_phone).toBe("3009998877");
+  });
+
+  it("keeps emergency columns null when the section is untouched", () => {
+    const result = buildRetreatRegistrationUpdate({ ...base });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.payload.emergency_contact_name).toBeNull();
+    expect(result.payload.emergency_contact_relationship).toBeNull();
+    expect(result.payload.emergency_contact_phone).toBeNull();
+  });
+
+  it("rejects an incomplete emergency contact reporting the first missing field", () => {
+    const noRelationship = buildRetreatRegistrationUpdate({
+      ...base,
+      emergencyContactName: "Rosa Pérez",
+      emergencyContactRelationship: "",
+      emergencyContactPhone: "3009998877",
+    });
+    expect(noRelationship.ok).toBe(false);
+    if (noRelationship.ok) return;
+    expect(noRelationship.error).toContain("parentesco");
+
+    const noPhone = buildRetreatRegistrationUpdate({
+      ...base,
+      emergencyContactName: "Rosa Pérez",
+      emergencyContactRelationship: "madre",
+      emergencyContactPhone: "",
+    });
+    expect(noPhone.ok).toBe(false);
+    if (noPhone.ok) return;
+    expect(noPhone.error).toContain("teléfono");
+
+    const noName = buildRetreatRegistrationUpdate({
+      ...base,
+      emergencyContactName: "",
+      emergencyContactRelationship: "madre",
+      emergencyContactPhone: "3009998877",
+    });
+    expect(noName.ok).toBe(false);
+    if (noName.ok) return;
+    expect(noName.error).toContain("nombre");
   });
 });

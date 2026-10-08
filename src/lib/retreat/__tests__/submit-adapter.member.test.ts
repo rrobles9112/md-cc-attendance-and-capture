@@ -60,6 +60,9 @@ describe("submitRetreatPreinscriptionForMember adapter", () => {
         p_medical_conditions: null,
         p_medical_medications: null,
         p_medical_dosage: null,
+        p_emergency_contact_name: null,
+        p_emergency_contact_relationship: null,
+        p_emergency_contact_phone: null,
       },
     );
   });
@@ -86,6 +89,9 @@ describe("submitRetreatPreinscriptionForMember adapter", () => {
         p_medical_conditions: null,
         p_medical_medications: null,
         p_medical_dosage: null,
+        p_emergency_contact_name: null,
+        p_emergency_contact_relationship: null,
+        p_emergency_contact_phone: null,
       },
     );
   });
@@ -178,5 +184,30 @@ describe("submitRetreatPreinscriptionForMember duplicate mapping (024)", () => {
     ).catch((err: unknown) => err);
     expect((caught as Error).message).toBe(RETREAT_DUPLICATE_MESSAGE);
     expect(isUserFacingError(caught)).toBe(true);
+  });
+});
+
+describe("submitRetreatPreinscriptionForMember emergency contact", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    rpcMock.mockResolvedValue({ data: "uuid", error: null });
+  });
+
+  it("sends trimmed p_emergency_contact_* arguments", async () => {
+    await submitRetreatPreinscriptionForMember("member-uuid-123", {
+      ...basePayload,
+      emergencyContactName: " Rosa Pérez ",
+      emergencyContactRelationship: "madre",
+      emergencyContactPhone: " 3009998877 ",
+    });
+
+    expect(rpcMock).toHaveBeenCalledWith(
+      "register_retreat_preinscription_for_member",
+      expect.objectContaining({
+        p_emergency_contact_name: "Rosa Pérez",
+        p_emergency_contact_relationship: "madre",
+        p_emergency_contact_phone: "3009998877",
+      }),
+    );
   });
 });

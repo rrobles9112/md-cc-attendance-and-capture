@@ -59,6 +59,11 @@ export async function submitRetreatPreinscriptionForMember(
       p_medical_conditions: emptyToNull(payload.medicalConditions),
       p_medical_medications: emptyToNull(payload.medicalMedications),
       p_medical_dosage: emptyToNull(payload.medicalDosage),
+      p_emergency_contact_name: emptyToNull(payload.emergencyContactName),
+      p_emergency_contact_relationship: emptyToNull(
+        payload.emergencyContactRelationship,
+      ),
+      p_emergency_contact_phone: emptyToNull(payload.emergencyContactPhone),
     },
   );
   if (error) {
@@ -86,6 +91,11 @@ export async function submitRetreatPreinscription(
     p_medical_conditions: emptyToNull(payload.medicalConditions),
     p_medical_medications: emptyToNull(payload.medicalMedications),
     p_medical_dosage: emptyToNull(payload.medicalDosage),
+    p_emergency_contact_name: emptyToNull(payload.emergencyContactName),
+    p_emergency_contact_relationship: emptyToNull(
+      payload.emergencyContactRelationship,
+    ),
+    p_emergency_contact_phone: emptyToNull(payload.emergencyContactPhone),
   });
 
   if (error) {
