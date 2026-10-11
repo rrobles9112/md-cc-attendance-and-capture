@@ -10,6 +10,9 @@ export interface Member {
   is_minor: boolean
   legal_rep_name?: string
   has_whatsapp: boolean
+  emergency_contact_name?: string
+  emergency_contact_relationship?: string
+  emergency_contact_phone?: string
   consent_recorded: boolean
   sensitive_consent_recorded: boolean
   denomination_encrypted?: Uint8Array

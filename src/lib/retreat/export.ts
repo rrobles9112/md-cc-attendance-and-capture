@@ -9,6 +9,9 @@ export type RetreatReportRow = {
   FechaNacimiento: string;
   EsMenor: string;
   RepresentanteLegal: string;
+  ContactoEmergencia: string;
+  ParentescoEmergencia: string;
+  CelularEmergencia: string;
   Estado: string;
   TieneCondicionMedica: string;
   Condiciones: string;
@@ -38,6 +41,9 @@ export function buildReportRows(
     medical_conditions?: string | null;
     medical_medications?: string | null;
     medical_dosage?: string | null;
+    emergency_contact_name?: string | null;
+    emergency_contact_relationship?: string | null;
+    emergency_contact_phone?: string | null;
   }>,
   paymentsById: Map<
     string,
@@ -78,6 +84,9 @@ export function buildReportRows(
       FechaNacimiento: r.birthday ?? "",
       EsMenor: r.is_minor ? "Sí" : "No",
       RepresentanteLegal: r.legal_rep_name ?? "",
+      ContactoEmergencia: r.emergency_contact_name ?? "",
+      ParentescoEmergencia: r.emergency_contact_relationship ?? "",
+      CelularEmergencia: r.emergency_contact_phone ?? "",
       Estado: r.status,
       TieneCondicionMedica: r.has_medical_conditions ? "Sí" : "No",
       Condiciones: r.medical_conditions ?? "",
@@ -143,6 +152,9 @@ export function exportRetreatToXLSX(
         FechaNacimiento: "",
         EsMenor: "",
         RepresentanteLegal: "",
+        ContactoEmergencia: "",
+        ParentescoEmergencia: "",
+        CelularEmergencia: "",
         Estado: "",
         TieneCondicionMedica: "",
         Condiciones: "",

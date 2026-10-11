@@ -1333,3 +1333,105 @@ BEGIN
 END $$;
 
 ROLLBACK;
+
+-- =============================================================================
+-- 026 emergency contact (name / relationship / phone) — additive columns on
+-- retreat_registrations and members; persisted by both preinscription RPCs.
+-- =============================================================================
+
+DO $$
+DECLARE
+  v_super uuid;
+  v_member uuid;
+  v_reg uuid;
+  v_ename text;
+  v_erel text;
+  v_ephone text;
+BEGIN
+  SELECT id INTO v_super FROM public.profiles WHERE role = 'super_admin' LIMIT 1;
+  IF v_super IS NULL THEN
+    RAISE EXCEPTION 'FAIL: no super_admin profile available for the 026 emergency contact test';
+  END IF;
+
+  IF (SELECT count(*) FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'retreat_registrations'
+        AND column_name IN ('emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_phone')) <> 3 THEN
+    RAISE EXCEPTION 'FAIL: retreat_registrations is missing the three emergency_contact_* columns (026)';
+  END IF;
+  IF (SELECT count(*) FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'members'
+        AND column_name IN ('emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_phone')) <> 3 THEN
+    RAISE EXCEPTION 'FAIL: members is missing the three emergency_contact_* columns (026)';
+  END IF;
+  RAISE NOTICE 'PASS: 026 emergency_contact_* columns exist on retreat_registrations and members';
+
+  -- anon RPC persists trimmed emergency contact
+  SET LOCAL ROLE anon;
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
+  v_reg := public.register_retreat_preinscription(
+    p_name := 'Emergency Anon',
+    p_phone := '3009110002',
+    p_email := 'emergency-anon@example.com',
+    p_birthday := DATE '2000-01-15',
+    p_general_consent := true,
+    p_emergency_contact_name := '  Rosa Pérez ',
+    p_emergency_contact_relationship := 'madre',
+    p_emergency_contact_phone := ' 3009110003 '
+  );
+  RESET ROLE;
+  SELECT r.emergency_contact_name, r.emergency_contact_relationship, r.emergency_contact_phone
+    INTO v_ename, v_erel, v_ephone
+  FROM public.retreat_registrations r WHERE r.id = v_reg;
+  IF v_ename IS DISTINCT FROM 'Rosa Pérez' OR v_erel IS DISTINCT FROM 'madre' OR v_ephone IS DISTINCT FROM '3009110003' THEN
+    RAISE EXCEPTION 'FAIL: anon RPC must persist trimmed emergency contact, got % / % / %', v_ename, v_erel, v_ephone;
+  END IF;
+  RAISE NOTICE 'PASS: anon RPC persists trimmed emergency contact (026)';
+
+  -- omitting the params keeps the columns NULL (old call sites unaffected)
+  SET LOCAL ROLE anon;
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
+  v_reg := public.register_retreat_preinscription(
+    p_name := 'Emergency None',
+    p_phone := '3009110005',
+    p_email := 'emergency-none@example.com',
+    p_birthday := DATE '2000-01-15',
+    p_general_consent := true
+  );
+  RESET ROLE;
+  SELECT r.emergency_contact_name, r.emergency_contact_relationship, r.emergency_contact_phone
+    INTO v_ename, v_erel, v_ephone
+  FROM public.retreat_registrations r WHERE r.id = v_reg;
+  IF v_ename IS NOT NULL OR v_erel IS NOT NULL OR v_ephone IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: omitted emergency params must stay NULL, got % / % / %', v_ename, v_erel, v_ephone;
+  END IF;
+  RAISE NOTICE 'PASS: omitted emergency params stay NULL (026 backward compatible)';
+
+  -- member RPC persists emergency contact (super_admin gate)
+  INSERT INTO public.members (id, name, name_normalized, phone, email, birthday, is_minor, has_whatsapp,
+    consent_recorded, sensitive_consent_recorded, duplicate_flag, created_by, created_at, updated_at, deleted_at)
+  VALUES ('b0000000-0000-4000-8000-000000000201', 'EmergMember', 'emergmember', '3009110006',
+    'emergency-member@example.com', DATE '2000-01-15', false, false, true, false, false,
+    v_super, now(), now(), NULL)
+  ON CONFLICT (id) DO NOTHING;
+  v_member := 'b0000000-0000-4000-8000-000000000201';
+
+  SET LOCAL ROLE authenticated;
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_super::text, 'app_metadata', json_build_object('role', 'super_admin'))::text, true);
+  v_reg := public.register_retreat_preinscription_for_member(
+    p_member_id := v_member,
+    p_general_consent := true,
+    p_emergency_contact_name := 'Rosa Pérez',
+    p_emergency_contact_relationship := 'familiar',
+    p_emergency_contact_phone := '3009110007'
+  );
+  RESET ROLE;
+  SELECT r.emergency_contact_name, r.emergency_contact_relationship, r.emergency_contact_phone
+    INTO v_ename, v_erel, v_ephone
+  FROM public.retreat_registrations r WHERE r.id = v_reg;
+  IF v_ename IS DISTINCT FROM 'Rosa Pérez' OR v_erel IS DISTINCT FROM 'familiar' OR v_ephone IS DISTINCT FROM '3009110007' THEN
+    RAISE EXCEPTION 'FAIL: member RPC must persist emergency contact, got % / % / %', v_ename, v_erel, v_ephone;
+  END IF;
+  RAISE NOTICE 'PASS: member RPC persists emergency contact (026)';
+END $$;
+
+ROLLBACK;

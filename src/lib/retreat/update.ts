@@ -16,6 +16,9 @@ export type RetreatRegistrationUpdateInput = {
   medicalConditions: string;
   medicalMedications: string;
   medicalDosage: string;
+  emergencyContactName?: string;
+  emergencyContactRelationship?: string;
+  emergencyContactPhone?: string;
   denomination?: string;
   communityName?: string;
   sensitiveConsent?: boolean;
@@ -36,6 +39,9 @@ export type RetreatRegistrationUpdatePayload = {
   medical_conditions: string | null;
   medical_medications: string | null;
   medical_dosage: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_relationship: string | null;
+  emergency_contact_phone: string | null;
   denomination: string | null;
   community_name: string | null;
   sensitive_consent_accepted_at: string | null;
@@ -94,9 +100,33 @@ export function buildRetreatRegistrationUpdate(
   const medicalMedications = input.medicalMedications.trim();
   const medicalDosage = input.medicalDosage.trim();
 
+  const emergencyName = (input.emergencyContactName ?? "").trim();
+  const emergencyRelationship = (input.emergencyContactRelationship ?? "").trim();
+  const emergencyPhone = (input.emergencyContactPhone ?? "").trim();
+  const emergencyStarted =
+    emergencyName !== "" ||
+    emergencyRelationship !== "" ||
+    emergencyPhone !== "";
+  if (emergencyStarted) {
+    if (emergencyName === "") {
+      return { ok: false, error: "Indique el nombre del contacto de emergencia" };
+    }
+    if (emergencyRelationship === "") {
+      return {
+        ok: false,
+        error: "Indique el parentesco del contacto de emergencia",
+      };
+    }
+    if (emergencyPhone === "") {
+      return {
+        ok: false,
+        error: "Indique el teléfono del contacto de emergencia",
+      };
+    }
+  }
+
   const denomination = (input.denomination ?? "").trim();
-  const communityName = (input.communityName ?? "").trim();
-  const prevDenomination = (input.prevDenomination ?? "").trim();
+  const communityName = (input.communityName ?? "").trim();  const prevDenomination = (input.prevDenomination ?? "").trim();
   const prevCommunityName = (input.prevCommunityName ?? "").trim();
   const religiousChanged =
     denomination !== prevDenomination || communityName !== prevCommunityName;
@@ -134,6 +164,9 @@ export function buildRetreatRegistrationUpdate(
         ? medicalMedications || null
         : null,
       medical_dosage: hasMedicalConditions ? medicalDosage || null : null,
+      emergency_contact_name: emergencyName || null,
+      emergency_contact_relationship: emergencyRelationship || null,
+      emergency_contact_phone: emergencyPhone || null,
       denomination: denomination || null,
       community_name: communityName || null,
       sensitive_consent_accepted_at: sensitiveConsentAcceptedAt,

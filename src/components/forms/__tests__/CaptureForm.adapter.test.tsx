@@ -141,6 +141,9 @@ describe("CaptureForm submit paths", () => {
       medicalConditions: "",
       medicalMedications: "",
       medicalDosage: "",
+      emergencyContactName: "",
+      emergencyContactRelationship: "",
+      emergencyContactPhone: "",
     });
     expect(membersAddMock).not.toHaveBeenCalled();
     expect(enqueueMock).not.toHaveBeenCalled();

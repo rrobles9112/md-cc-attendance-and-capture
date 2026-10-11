@@ -52,3 +52,49 @@ describe("buildMemberUpdate", () => {
     expect(result.error).toMatch(/nombre|obligatori/i)
   })
 })
+
+describe("buildMemberUpdate emergency contact", () => {
+  const base = {
+    name: "Ana Pérez",
+    phone: "3001234567",
+    email: "ana@example.com",
+    birthday: "2000-01-15",
+    legalRepName: "",
+    hasWhatsapp: false,
+  };
+
+  it("persists a complete emergency contact, trimmed", () => {
+    const result = buildMemberUpdate({
+      ...base,
+      emergencyContactName: " Rosa Pérez ",
+      emergencyContactRelationship: " madre ",
+      emergencyContactPhone: " 3009998877 ",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.payload.emergency_contact_name).toBe("Rosa Pérez");
+    expect(result.payload.emergency_contact_relationship).toBe("madre");
+    expect(result.payload.emergency_contact_phone).toBe("3009998877");
+  });
+
+  it("keeps emergency columns null when untouched", () => {
+    const result = buildMemberUpdate({ ...base });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.payload.emergency_contact_name).toBeNull();
+    expect(result.payload.emergency_contact_relationship).toBeNull();
+    expect(result.payload.emergency_contact_phone).toBeNull();
+  });
+
+  it("rejects an incomplete emergency contact", () => {
+    const result = buildMemberUpdate({
+      ...base,
+      emergencyContactName: "Rosa Pérez",
+      emergencyContactRelationship: "",
+      emergencyContactPhone: "",
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain("parentesco");
+  });
+});

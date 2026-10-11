@@ -5,7 +5,7 @@ import { parsePositiveTotal } from "./payments";
  * Must include transferred_* for badge + audit, birthday/is_minor for future export.
  */
 export const RETREAT_REGISTRATIONS_SELECT =
-  "id,name,email,phone,birthday,is_minor,legal_rep_name,status,created_at,transferred_at,transferred_member_id,member_id,has_whatsapp,whatsapp_number,has_medical_conditions,medical_conditions,medical_medications,medical_dosage,denomination,community_name,sensitive_consent_accepted_at";
+  "id,name,email,phone,birthday,is_minor,legal_rep_name,status,created_at,transferred_at,transferred_member_id,member_id,has_whatsapp,whatsapp_number,has_medical_conditions,medical_conditions,medical_medications,medical_dosage,emergency_contact_name,emergency_contact_relationship,emergency_contact_phone,denomination,community_name,sensitive_consent_accepted_at";
 
 /**
  * Escape PostgREST ilike wildcards: % _ , \ . // comma escaped for .or URL safety
