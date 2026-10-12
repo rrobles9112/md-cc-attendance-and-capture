@@ -209,6 +209,14 @@ function deleteSuccessToast(mode: DeleteMode): string {
   }
 }
 
+function describeLoadError(err: unknown): string {
+  if (err && typeof err === "object" && "message" in err) {
+    const message = String((err as { message: unknown }).message);
+    if (message) return message;
+  }
+  return String(err) || "Error desconocido";
+}
+
 export default function RetreatRegistrationsPage() {
   const { role, loading } = useRole();
   const [registrations, setRegistrations] = useState<RetreatRegistrationRow[]>(
@@ -231,6 +239,7 @@ export default function RetreatRegistrationsPage() {
   const [pageSize, setPageSize] = useState(20);
   const [totalCount, setTotalCount] = useState(0);
   const [loadingData, setLoadingData] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [transferTarget, setTransferTarget] =
     useState<RetreatRegistrationRow | null>(null);
   const [transferConsent, setTransferConsent] = useState(false);
@@ -286,6 +295,11 @@ export default function RetreatRegistrationsPage() {
         }>,
         getRetreatTotalCost(),
       ]);
+      if (result.error) {
+        setLoadError(describeLoadError(result.error));
+        return;
+      }
+      setLoadError(null);
       const regs = (result.data ?? []).filter(
         (row): row is RetreatRegistrationRow =>
           typeof (row as { status: unknown }).status === "string" &&
@@ -302,15 +316,24 @@ export default function RetreatRegistrationsPage() {
         setPaymentCountsByRegistration(new Map());
         return;
       }
-      const { data: pays } = (await supabase
+      const { data: pays, error: paysError } = (await supabase
         .from("retreat_payments")
         .select("registration_id,amount,created_at")
         .in("registration_id", ids)
-        .order("created_at")) as { data: RetreatPaymentRow[] | null };
+        .order("created_at")) as {
+        data: RetreatPaymentRow[] | null;
+        error: unknown;
+      };
+      if (paysError) {
+        setLoadError(describeLoadError(paysError));
+        return;
+      }
       const paymentsArr = (pays ?? []) as RetreatPaymentRow[];
       setPayments(paymentsArr);
       setPaidByRegistration(sumPaidByRegistration(paymentsArr));
       setPaymentCountsByRegistration(countPaidByRegistration(paymentsArr));
+    } catch (err) {
+      setLoadError(describeLoadError(err));
     } finally {
       setLoadingData(false);
     }
@@ -1059,6 +1082,27 @@ export default function RetreatRegistrationsPage() {
       <div
         className={`w-full max-w-full rounded-lg border ${tableScrollClass}`}
       >
+        {loadError ? (
+          <div role="alert" className="flex flex-col gap-2 p-6">
+            <p className="text-sm font-semibold text-destructive">
+              No se pudieron cargar los datos de las preinscripciones
+            </p>
+            <p className="text-xs text-muted-foreground">{loadError}</p>
+            <p className="text-sm text-muted-foreground">
+              Verifique su conexión y su sesión. Si el problema persiste,
+              cierre sesión y vuelva a entrar.
+            </p>
+            <div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void loadData()}
+              >
+                Reintentar
+              </Button>
+            </div>
+          </div>
+        ) : (
         <Table className={isCompact ? "min-w-[980px] text-xs" : "min-w-[980px]"}>
           <TableHeader className="sticky top-0 z-20 bg-background shadow-sm">
             <TableRow>
@@ -1407,6 +1451,7 @@ export default function RetreatRegistrationsPage() {
             )}
           </TableBody>
         </Table>
+        )}
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm text-muted-foreground">
