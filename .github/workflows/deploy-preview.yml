@@ -2,7 +2,7 @@ name: Deploy Preview
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 'cursor/**']
 
 concurrency:
   group: preview-${{ github.event.pull_request.number }}

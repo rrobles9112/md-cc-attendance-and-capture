@@ -13,6 +13,11 @@ export interface Member {
   emergency_contact_name?: string
   emergency_contact_relationship?: string
   emergency_contact_phone?: string
+  has_medical_conditions?: boolean
+  medical_conditions?: string
+  medical_medications?: string
+  medical_dosage?: string
+  pastoral_group?: string | null
   consent_recorded: boolean
   sensitive_consent_recorded: boolean
   denomination_encrypted?: Uint8Array

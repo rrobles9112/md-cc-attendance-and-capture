@@ -76,6 +76,11 @@ import {
   getPaginationRange,
 } from "@/lib/retreat/queries";
 import {
+  findMatchingActiveMemberForTransfer,
+  normalizeColombianPhoneDigits,
+  type TransferMemberMatch,
+} from "@/lib/retreat/transfer";
+import {
   getRetreatTotalCost,
   setRetreatTotalCost,
 } from "@/lib/settings/app-settings";
@@ -234,10 +239,9 @@ export default function RetreatRegistrationsPage() {
   const [transferTarget, setTransferTarget] =
     useState<RetreatRegistrationRow | null>(null);
   const [transferConsent, setTransferConsent] = useState(false);
-  const [transferDup, setTransferDup] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
+  const [transferDup, setTransferDup] = useState<TransferMemberMatch | null>(
+    null,
+  );
   const [transferring, setTransferring] = useState(false);
   const [editTarget, setEditTarget] = useState<RetreatRegistrationRow | null>(
     null,
@@ -382,17 +386,19 @@ export default function RetreatRegistrationsPage() {
   }, [columnVisibility, density, tableHeight]);
 
   // Duplicate pre-check when the transfer dialog opens: email exact match OR
-  // phone containing the digits of the registration phone. The transfer RPC
-  // remains the authoritative validation; query errors surface no warning.
+  // phone containing the canonical 10-digit phone (matching +57 and plain
+  // 10-digit numbers). If a match is found, transfer links and updates the
+  // existing member in Valientes instead of creating a duplicate.
   useEffect(() => {
     if (!transferTarget) {
       setTransferDup(null);
       return;
     }
-    const email = (transferTarget.email ?? "").trim();
-    const digits = (transferTarget.phone ?? "").replace(/\D/g, "");
+    const email = (transferTarget.email ?? "").trim().toLowerCase();
+    const digits = normalizeColombianPhoneDigits(transferTarget.phone);
     const ors: string[] = [];
-    if (email) ors.push(`email.eq.${email}`);
+    if (transferTarget.member_id) ors.push(`id.eq.${transferTarget.member_id}`);
+    if (email) ors.push(`email.ilike.${email}`);
     if (digits) ors.push(`phone.like.%${digits}%`);
     if (ors.length === 0) {
       setTransferDup(null);
@@ -400,18 +406,28 @@ export default function RetreatRegistrationsPage() {
     }
     let cancelled = false;
     const supabase = createClient();
-    // SAFETY: supabase postgrest builder narrowed to typed select promise; or-filter returns id/name rows
+    // SAFETY: supabase postgrest builder narrowed to typed select promise; or-filter returns member rows
     void (
       supabase
         .from("members")
-        .select("id,name")
+        .select("id,name,email,phone,pastoral_group")
         .or(ors.join(","))
-        .limit(1) as unknown as Promise<{
-        data: Array<{ id: string; name: string }> | null;
+        .limit(5) as unknown as Promise<{
+        data: Array<{
+          id: string;
+          name: string;
+          email?: string | null;
+          phone?: string | null;
+          pastoral_group?: string | null;
+        }> | null;
         error: unknown;
       }>
     ).then(({ data }) => {
-      if (!cancelled) setTransferDup(data && data.length > 0 ? data[0] : null);
+      if (!cancelled) {
+        setTransferDup(
+          findMatchingActiveMemberForTransfer(transferTarget, data ?? []),
+        );
+      }
     });
     return () => {
       cancelled = true;
@@ -648,11 +664,13 @@ export default function RetreatRegistrationsPage() {
     setTransferring(true);
     try {
       const supabase = createClient();
+      const rpcArgs: Record<string, unknown> = {
+        p_registration_id: transferTarget.id,
+        p_link_existing_member: true,
+      };
       const { data, error } = (await supabase.rpc(
         "transfer_retreat_to_valientes",
-        {
-          p_registration_id: transferTarget.id,
-        },
+        rpcArgs,
       )) as {
         data: string | null;
         error: { message: string; code?: string } | null;
@@ -1469,9 +1487,10 @@ export default function RetreatRegistrationsPage() {
             </div>
           )}
           {transferDup && (
-            <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              Ya existe un miembro con ese email o teléfono
-              {transferDup.name ? `: ${transferDup.name}` : ""}
+            <p className="rounded-md border border-blue-200 bg-blue-50/80 px-3 py-2 text-sm text-blue-950">
+              {transferDup.isAlreadyLinked
+                ? `Vinculado al miembro existente${transferDup.name ? `: ${transferDup.name}` : ""}. Al transferir se actualizarán sus datos en Valientes sin crear duplicados.`
+                : `Ya existe un miembro con ese email o teléfono${transferDup.name ? `: ${transferDup.name}` : ""}. Al transferir se vinculará y actualizará su registro en Valientes sin crear duplicados.`}
             </p>
           )}
           <div className="flex items-center space-x-2 py-2">
@@ -1496,7 +1515,7 @@ export default function RetreatRegistrationsPage() {
               Cancelar
             </Button>
             <Button
-              disabled={!transferConsent || transferring || !!transferDup}
+              disabled={!transferConsent || transferring}
               onClick={() => void handleTransfer()}
             >
               {transferring ? "Transfiriendo..." : "Transferir"}
