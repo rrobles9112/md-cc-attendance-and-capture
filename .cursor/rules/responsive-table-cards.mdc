@@ -1,0 +1,16 @@
+---
+description: Render responsive Card per record (with all columns, row values, and action buttons/botonera) on mobile, tablet, and medium screens (< 1280px) for all shadcn/ui tables
+globs: src/**/*.tsx
+alwaysApply: true
+---
+
+# Responsive Card Layout for shadcn/ui Tables
+
+All tables in the application that use `@/components/ui/table` (`shadcn/ui`) MUST render a responsive Card per record on mobile, tablet, and medium-resolution screens (`(max-width: 1279px)`):
+
+1. Use `useIsCompactTableViewport()` from `@/hooks/useResponsiveTable` to detect mobile, tablet, and medium viewports (`< 1280px`).
+2. When `isCompactViewport` is `true`, render `<ResponsiveTableCards>` and `<ResponsiveTableCard>` from `@/components/ui/responsive-table` instead of `<Table>`:
+   - Include the record's primary identifier and badges in `<ResponsiveTableCardHeader>`.
+   - Include all columns and row values in `<ResponsiveTableCardFields>` (do not hide data columns on mobile/tablet/medium screens).
+   - Include the complete action button group (`botonera`) in `<ResponsiveTableCardActions>`.
+3. Render only the active view (`<ResponsiveTableCards>` when compact, `<Table>` on `>= 1280px` or print) so interactive controls and accessibility roles are not duplicated in the DOM.

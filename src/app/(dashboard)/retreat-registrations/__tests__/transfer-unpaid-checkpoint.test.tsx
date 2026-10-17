@@ -253,4 +253,38 @@ describe('Transferir a Valientes payment-independent confirmation checkpoint', (
       })
     })
   })
+
+  it('renders preinscritos as responsive Cards with all columns and botonera on mobile/tablet/medium screens (< 1280px)', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: true,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    })
+    registrationsData = [unpaidRegistration]
+    registrationsCount = 1
+
+    const Page = (await import('../page')).default
+    const { container } = render(<Page />)
+
+    await waitFor(() => expect(screen.getByText('Carlos Gómez')).toBeInTheDocument())
+
+    expect(container.querySelector('table')).toBeNull()
+    expect(screen.getByTestId('responsive-table-cards')).toBeInTheDocument()
+    expect(screen.getByTestId('responsive-table-card')).toBeInTheDocument()
+
+    expect(screen.getByText('3009876543')).toBeInTheDocument()
+    expect(screen.getByText('carlos@example.com')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Gestionar pagos de Carlos Gómez/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Transferir a Valientes/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Editar preinscripción de Carlos Gómez/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Eliminar preinscripción de Carlos Gómez/i })).toBeInTheDocument()
+  })
 })

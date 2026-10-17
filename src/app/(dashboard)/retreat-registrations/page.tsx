@@ -38,6 +38,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  ResponsiveTableCard,
+  ResponsiveTableCardActions,
+  ResponsiveTableCardFields,
+  ResponsiveTableCardHeader,
+  ResponsiveTableCards,
+  ResponsiveTableEmpty,
+  type ResponsiveTableFieldItem,
+} from "@/components/ui/responsive-table";
+import { useIsCompactTableViewport } from "@/hooks/useResponsiveTable";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRole } from "@/hooks/useRole";
 import {
@@ -266,6 +276,7 @@ export default function RetreatRegistrationsPage() {
     typeof navigator !== "undefined" ? navigator.onLine : true,
   );
   const [hasSession, setHasSession] = useState(true);
+  const isCompactViewport = useIsCompactTableViewport();
   const router = useRouter();
 
   const loadData = useCallback(async () => {
@@ -1077,6 +1088,214 @@ export default function RetreatRegistrationsPage() {
         </DialogContent>
       </Dialog>
 
+      {isCompactViewport ? (
+        registrations.length === 0 ? (
+          <ResponsiveTableEmpty>
+            No hay preinscripciones registradas
+          </ResponsiveTableEmpty>
+        ) : (
+          <ResponsiveTableCards>
+            {registrations.map((registration) => {
+              const sumPaid = paidByRegistration.get(registration.id) ?? 0;
+              const remaining = remainingBalance(parsedTotal, sumPaid);
+              const rowPayments = payments.filter(
+                (p) => p.registration_id === registration.id,
+              );
+              const abonos = computeRowAbonos(rowPayments, storedTotal);
+              const pct = parsedTotal
+                ? Math.min(100, (sumPaid / parsedTotal) * 100)
+                : 0;
+              const cardFields: ResponsiveTableFieldItem[] = [];
+              if (columnVisibility.telefono) {
+                cardFields.push({
+                  label: "Teléfono",
+                  value: registration.phone || "—",
+                });
+              }
+              if (columnVisibility.estado) {
+                cardFields.push({
+                  label: "Estado",
+                  value: (
+                    <Badge variant={statusBadgeVariant(registration.status)}>
+                      {retreatStatusLabel(registration.status)}
+                    </Badge>
+                  ),
+                });
+              }
+              if (columnVisibility.email) {
+                cardFields.push({
+                  label: "Email",
+                  value: registration.email || "—",
+                  fullWidth: true,
+                });
+              }
+              cardFields.push({
+                label: "Pagado",
+                value: formatAmount(sumPaid),
+              });
+              if (columnVisibility.saldo) {
+                cardFields.push({
+                  label: "Saldo",
+                  value: remaining === null ? "—" : formatAmount(remaining),
+                });
+              }
+              if (columnVisibility.porcentaje) {
+                cardFields.push({
+                  label: "% Pagado",
+                  value:
+                    abonos.percent === null
+                      ? "—"
+                      : `${abonos.percent.toFixed(0)}%`,
+                });
+              }
+              if (columnVisibility.ultimoAbono) {
+                cardFields.push({
+                  label: "Último abono",
+                  value: abonos.last
+                    ? new Date(abonos.last).toLocaleDateString("es-CO", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      })
+                    : "—",
+                });
+              }
+              if (columnVisibility.salud) {
+                cardFields.push({
+                  label: "Salud",
+                  value: registration.has_medical_conditions
+                    ? [
+                        registration.medical_conditions,
+                        registration.medical_medications,
+                        registration.medical_dosage,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "Sí"
+                    : "No",
+                  fullWidth: true,
+                });
+              }
+              if (canMutate) {
+                cardFields.push({
+                  label: "Pagos",
+                  value:
+                    registration.status === "inscrito" ? (
+                      <Badge
+                        variant="secondary"
+                        className="bg-emerald-50 text-emerald-800"
+                      >
+                        Pagado ✓
+                      </Badge>
+                    ) : paymentsBlocked ? (
+                      <span className="text-xs text-muted-foreground">
+                        Pagos bloqueados
+                      </span>
+                    ) : !canRecordPayments ? (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="h-1.5 w-full rounded bg-secondary">
+                          <div
+                            className="h-1.5 rounded bg-primary"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          Pagado {formatAmount(sumPaid)} de{" "}
+                          {parsedTotal ? formatAmount(parsedTotal) : "—"}
+                        </span>
+                      </div>
+                    ),
+                  fullWidth: true,
+                });
+              }
+              return (
+                <ResponsiveTableCard key={registration.id}>
+                  <ResponsiveTableCardHeader
+                    title={registration.name}
+                    badges={
+                      <>
+                        {registration.transferred_at && (
+                          <Badge
+                            variant="secondary"
+                            className="bg-emerald-50 text-emerald-800"
+                            title={new Date(
+                              registration.transferred_at,
+                            ).toLocaleDateString("es-CO")}
+                          >
+                            Transferido ✓
+                          </Badge>
+                        )}
+                        {registration.has_medical_conditions && (
+                          <Badge variant="outline">Salud</Badge>
+                        )}
+                      </>
+                    }
+                  />
+                  <ResponsiveTableCardFields fields={cardFields} />
+                  {(canMutate || canDelete) && (
+                    <ResponsiveTableCardActions>
+                      {canMutate &&
+                        registration.status !== "inscrito" &&
+                        !paymentsBlocked &&
+                        canRecordPayments && (
+                          <Button
+                            size="sm"
+                            onClick={() => setPaymentTarget(registration)}
+                            aria-label={`Gestionar pagos de ${registration.name}`}
+                          >
+                            Gestionar pagos
+                          </Button>
+                        )}
+                      {canMutate &&
+                        columnVisibility.transferir &&
+                        !registration.transferred_at && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={
+                              !isOnline ||
+                              !hasSession ||
+                              !canTransferRetreatToValientes(role) ||
+                              transferring
+                            }
+                            onClick={() => {
+                              setTransferTarget(registration);
+                              setTransferConsent(false);
+                            }}
+                          >
+                            <UserPlus className="mr-1 h-4 w-4" /> Transferir a
+                            Valientes
+                          </Button>
+                        )}
+                      {canDelete && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label={`Editar preinscripción de ${registration.name}`}
+                            onClick={() => setEditTarget(registration)}
+                          >
+                            <Pencil className="mr-1 h-4 w-4" /> Editar
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            aria-label={`Eliminar preinscripción de ${registration.name}`}
+                            onClick={() => openDeleteDialog(registration)}
+                          >
+                            Eliminar
+                          </Button>
+                        </>
+                      )}
+                    </ResponsiveTableCardActions>
+                  )}
+                </ResponsiveTableCard>
+              );
+            })}
+          </ResponsiveTableCards>
+        )
+      ) : (
       <div
         className={`w-full max-w-full rounded-lg border ${tableScrollClass}`}
       >
@@ -1428,6 +1647,7 @@ export default function RetreatRegistrationsPage() {
           </TableBody>
         </Table>
       </div>
+      )}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm text-muted-foreground">
         <div>

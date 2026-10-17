@@ -38,6 +38,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  ResponsiveTableCard,
+  ResponsiveTableCardFields,
+  ResponsiveTableCardHeader,
+  ResponsiveTableCards,
+  ResponsiveTableEmpty,
+} from '@/components/ui/responsive-table'
+import { useIsCompactTableViewport } from '@/hooks/useResponsiveTable'
 import { toast } from 'sonner'
 
 interface AttendanceGridProps {
@@ -47,6 +55,7 @@ interface AttendanceGridProps {
 
 export function AttendanceGrid({ sessions, onSessionCreated }: AttendanceGridProps) {
   const { role } = useRole()
+  const isCompactViewport = useIsCompactTableViewport()
   const [selectedSessionId, setSelectedSessionId] = useState<string>('')
   const [members, setMembers] = useState<Member[]>([])
   const [attendanceMap, setAttendanceMap] = useState<Record<string, Attendance>>({})
@@ -359,49 +368,93 @@ export function AttendanceGrid({ sessions, onSessionCreated }: AttendanceGridPro
             </Badge>
           </div>
 
-          <div className="rounded-lg border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">Presente</TableHead>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead className="hidden sm:table-cell">Teléfono</TableHead>
-                  <TableHead className="hidden md:table-cell">Email</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredMembers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
-                      {deferredSearch.trim()
-                        ? 'No se encontraron miembros'
-                        : 'No hay miembros registrados'}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  visibleMembers.map((member) => {
-                    const isMarked = !!attendanceMap[member.id]
-                    return (
-                      <TableRow
-                        key={member.id}
-                        className={isMarked ? 'bg-green-50' : ''}
-                      >
-                        <TableCell>
+          {isCompactViewport ? (
+            filteredMembers.length === 0 ? (
+              <ResponsiveTableEmpty>
+                {deferredSearch.trim()
+                  ? 'No se encontraron miembros'
+                  : 'No hay miembros registrados'}
+              </ResponsiveTableEmpty>
+            ) : (
+              <ResponsiveTableCards>
+                {visibleMembers.map((member) => {
+                  const isMarked = !!attendanceMap[member.id]
+                  return (
+                    <ResponsiveTableCard
+                      key={member.id}
+                      className={isMarked ? 'border-green-300 bg-green-50/70' : ''}
+                    >
+                      <ResponsiveTableCardHeader
+                        leading={
                           <Checkbox
                             checked={isMarked}
+                            aria-label={`Marcar asistencia de ${member.name}`}
                             onCheckedChange={() => handleToggleAttendance(member.id)}
                           />
-                        </TableCell>
-                        <TableCell className="font-medium">{member.name}</TableCell>
-                        <TableCell className="hidden sm:table-cell">{member.phone}</TableCell>
-                        <TableCell className="hidden md:table-cell">{member.email}</TableCell>
-                      </TableRow>
-                    )
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                        }
+                        title={member.name}
+                        badges={
+                          <Badge variant={isMarked ? 'default' : 'outline'}>
+                            {isMarked ? 'Presente' : 'Ausente'}
+                          </Badge>
+                        }
+                      />
+                      <ResponsiveTableCardFields
+                        fields={[
+                          { label: 'Teléfono', value: member.phone || '—' },
+                          { label: 'Email', value: member.email || '—' },
+                        ]}
+                      />
+                    </ResponsiveTableCard>
+                  )
+                })}
+              </ResponsiveTableCards>
+            )
+          ) : (
+            <div className="rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">Presente</TableHead>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead className="hidden sm:table-cell">Teléfono</TableHead>
+                    <TableHead className="hidden md:table-cell">Email</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredMembers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        {deferredSearch.trim()
+                          ? 'No se encontraron miembros'
+                          : 'No hay miembros registrados'}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    visibleMembers.map((member) => {
+                      const isMarked = !!attendanceMap[member.id]
+                      return (
+                        <TableRow
+                          key={member.id}
+                          className={isMarked ? 'bg-green-50' : ''}
+                        >
+                          <TableCell>
+                            <Checkbox
+                              checked={isMarked}
+                              onCheckedChange={() => handleToggleAttendance(member.id)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">{member.name}</TableCell>
+                          <TableCell className="hidden sm:table-cell">{member.phone}</TableCell>
+                          <TableCell className="hidden md:table-cell">{member.email}</TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
           {filteredMembers.length > visibleCount && (
             <Button
               variant="outline"

@@ -25,6 +25,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  ResponsiveTableCard,
+  ResponsiveTableCardActions,
+  ResponsiveTableCardFields,
+  ResponsiveTableCardHeader,
+  ResponsiveTableCards,
+  ResponsiveTableEmpty,
+} from "@/components/ui/responsive-table";
+import { useIsCompactTableViewport } from "@/hooks/useResponsiveTable";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -56,6 +65,7 @@ import { useRouter } from "next/navigation";
 
 export default function MembersPage() {
   const { role } = useRole();
+  const isCompactViewport = useIsCompactTableViewport();
   const router = useRouter();
   const [members, setMembers] = useState<Member[]>([]);
   const [search, setSearch] = useState("");
@@ -309,6 +319,93 @@ export default function MembersPage() {
             <Badge variant="outline">{filteredMembers.length} miembros</Badge>
           </div>
 
+          {isCompactViewport ? (
+            filteredMembers.length === 0 ? (
+              <ResponsiveTableEmpty>
+                {search
+                  ? "No se encontraron miembros"
+                  : "No hay miembros registrados"}
+              </ResponsiveTableEmpty>
+            ) : (
+              <ResponsiveTableCards>
+                {filteredMembers.map((member) => (
+                  <ResponsiveTableCard key={member.id}>
+                    <ResponsiveTableCardHeader
+                      title={member.name}
+                      badges={
+                        <>
+                          {member.duplicate_flag && (
+                            <Badge variant="destructive" className="text-[10px]">
+                              Duplicado
+                            </Badge>
+                          )}
+                          {member.is_minor && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] bg-amber-50 text-amber-800"
+                            >
+                              Menor
+                            </Badge>
+                          )}
+                        </>
+                      }
+                    />
+                    <ResponsiveTableCardFields
+                      fields={[
+                        { label: "Teléfono", value: member.phone || "—" },
+                        { label: "Email", value: member.email || "—" },
+                        {
+                          label: "WhatsApp",
+                          value: member.has_whatsapp ? (
+                            <Badge
+                              variant="outline"
+                              className="bg-green-50 text-green-800"
+                            >
+                              Sí
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">No</span>
+                          ),
+                        },
+                      ]}
+                    />
+                    <ResponsiveTableCardActions>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Ver a ${member.name}`}
+                        onClick={() => handleViewMember(member)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      {role && canModify(role) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Editar a ${member.name}`}
+                          onClick={() => {
+                            void handleViewMember(member).then(() => setEditing(true));
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {role && canDelete(role) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Eliminar a ${member.name}`}
+                          onClick={() => handleDeleteMember(member)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </ResponsiveTableCardActions>
+                  </ResponsiveTableCard>
+                ))}
+              </ResponsiveTableCards>
+            )
+          ) : (
           <div className="rounded-lg border">
         <Table>
           <TableHeader>
@@ -409,6 +506,7 @@ export default function MembersPage() {
           </TableBody>
         </Table>
       </div>
+          )}
         </TabsContent>
 
         <TabsContent value="highlights" className="space-y-4">

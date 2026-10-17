@@ -83,3 +83,4 @@ notes:
   - "openspec/ is the new file store going forward"
   - "Supabase has 10 migrations, RLS policies, realtime publication enabled"
   - "Offline-first architecture with Dexie + sync queue"
+  - "Architectural Decision (ADR-RESPONSIVE-TABLE-CARDS): All current and future shadcn/ui tables (@/components/ui/table) must render a Card per record (containing all columns, row values, and action buttons/botonera) on mobile, tablet, and medium-resolution viewports (< 1280px) via useIsCompactTableViewport() and @/components/ui/responsive-table."
