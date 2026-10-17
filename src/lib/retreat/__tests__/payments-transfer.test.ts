@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parsePositiveTotal } from "../payments";
 // isTransferEligible helper mirrors RPC gates (spec R1+R2, design AD-002 steps 4-5)
-import { isTransferEligible } from "../transfer";
+import { isTransferEligible, requiresUnpaidTransferCheckpoint } from "../transfer";
 
 describe("payments-transfer (PR1 T-002 RED)", () => {
   it("parsePositiveTotal('') => null", () => {
@@ -38,5 +38,10 @@ describe("payments-transfer (PR1 T-002 RED)", () => {
     expect(
       isTransferEligible({ status: "inscrito", sum: 400000, total: 400000, transferred_at: "2026-08-27T10:00:00Z" }),
     ).toBe("already_transferred");
+  });
+  it("requiresUnpaidTransferCheckpoint is true when status is preinscrito or pagos_parciales and false when inscrito", () => {
+    expect(requiresUnpaidTransferCheckpoint("preinscrito")).toBe(true);
+    expect(requiresUnpaidTransferCheckpoint("pagos_parciales")).toBe(true);
+    expect(requiresUnpaidTransferCheckpoint("inscrito")).toBe(false);
   });
 });

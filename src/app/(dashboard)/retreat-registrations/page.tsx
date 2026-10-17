@@ -78,6 +78,7 @@ import {
 import {
   findMatchingActiveMemberForTransfer,
   normalizeColombianPhoneDigits,
+  requiresUnpaidTransferCheckpoint,
   type TransferMemberMatch,
 } from "@/lib/retreat/transfer";
 import {
@@ -659,13 +660,15 @@ export default function RetreatRegistrationsPage() {
     }
   }
 
-  async function handleTransfer() {
-    if (!transferTarget || !transferConsent) return;
+  async function handleTransfer(allowUnpaid = false) {
+    if (!transferTarget) return;
+    if (!allowUnpaid && !transferConsent) return;
     setTransferring(true);
     try {
       const supabase = createClient();
       const rpcArgs: Record<string, unknown> = {
         p_registration_id: transferTarget.id,
+        p_allow_unpaid: allowUnpaid,
         p_link_existing_member: true,
       };
       const { data, error } = (await supabase.rpc(
@@ -1368,10 +1371,10 @@ export default function RetreatRegistrationsPage() {
                             title={
                               !isOnline || !hasSession
                                 ? "Requiere conexión"
-                                : registration.status !== "inscrito"
-                                  ? "Requiere estado Inscrito"
-                                  : !canTransferRetreatToValientes(role)
-                                    ? "Sin permisos"
+                                : !canTransferRetreatToValientes(role)
+                                  ? "Sin permisos"
+                                  : registration.status !== "inscrito"
+                                    ? "Requiere confirmación de transferencia sin pago total"
                                     : undefined
                             }
                           >
@@ -1379,7 +1382,6 @@ export default function RetreatRegistrationsPage() {
                               size="sm"
                               variant="secondary"
                               disabled={
-                                registration.status !== "inscrito" ||
                                 !isOnline ||
                                 !hasSession ||
                                 !canTransferRetreatToValientes(role) ||
@@ -1462,65 +1464,154 @@ export default function RetreatRegistrationsPage() {
         }}
       >
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Transferir a Valientes</DialogTitle>
-            <DialogDescription>
-              Se creará un miembro en el grupo Valientes con los datos del
-              retiro. Esta acción es irreversible. Ley 1581 pdtp-v1.0-2026-07-17
-            </DialogDescription>
-          </DialogHeader>
-          {transferTarget && (
-            <div className="space-y-2 text-sm">
-              <p>
-                <strong>Nombre:</strong> {transferTarget.name}
-              </p>
-              <p>
-                <strong>Email:</strong> {transferTarget.email}
-              </p>
-              <p>
-                <strong>Teléfono:</strong> {transferTarget.phone}
-              </p>
-              <p>
-                <strong>Estado:</strong>{" "}
-                {retreatStatusLabel(transferTarget.status)}
-              </p>
-            </div>
+          {transferTarget &&
+          requiresUnpaidTransferCheckpoint(transferTarget.status) ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  Confirmar transferencia a Valientes sin pago total
+                </DialogTitle>
+                <DialogDescription>
+                  Autorice pasar a esta persona preinscrita a miembro regular de
+                  las asambleas de Valientes (para poder tomar su asistencia sin
+                  haber pagado la totalidad del retiro). Ley 1581
+                  pdtp-v1.0-2026-07-17
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2 text-sm">
+                <p>
+                  <strong>Nombre:</strong> {transferTarget.name}
+                </p>
+                <p>
+                  <strong>Email:</strong> {transferTarget.email}
+                </p>
+                <p>
+                  <strong>Teléfono:</strong> {transferTarget.phone}
+                </p>
+                <p>
+                  <strong>Estado actual:</strong>{" "}
+                  {retreatStatusLabel(transferTarget.status)}
+                </p>
+                <p>
+                  <strong>Abonado:</strong>{" "}
+                  {formatAmount(paidByRegistration.get(transferTarget.id) ?? 0)}
+                  {parsedTotal !== null && (
+                    <>
+                      {" "}
+                      · <strong>Saldo pendiente:</strong>{" "}
+                      {formatAmount(
+                        remainingBalance(
+                          parsedTotal,
+                          paidByRegistration.get(transferTarget.id) ?? 0,
+                        ) ?? 0,
+                      )}
+                    </>
+                  )}
+                </p>
+              </div>
+              <div
+                role="alert"
+                className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+              >
+                ¿Autoriza transferir a <strong>{transferTarget.name}</strong> a
+                Valientes como miembro regular de asamblea aun sin haber
+                cancelado la totalidad del retiro?
+              </div>
+              {transferDup && (
+                <p className="rounded-md border border-blue-200 bg-blue-50/80 px-3 py-2 text-sm text-blue-950">
+                  {transferDup.isAlreadyLinked
+                    ? `Vinculado al miembro existente${transferDup.name ? `: ${transferDup.name}` : ""}. Al transferir se actualizarán sus datos en Valientes sin crear duplicados.`
+                    : `Ya existe un miembro con ese email o teléfono${transferDup.name ? `: ${transferDup.name}` : ""}. Al transferir se vinculará y actualizará su registro en Valientes sin crear duplicados.`}
+                </p>
+              )}
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setTransferTarget(null);
+                    setTransferConsent(false);
+                  }}
+                >
+                  No, cancelar
+                </Button>
+                <Button
+                  disabled={transferring}
+                  onClick={() => void handleTransfer(true)}
+                >
+                  {transferring
+                    ? "Transfiriendo..."
+                    : "Sí, transferir a Valientes"}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Transferir a Valientes</DialogTitle>
+                <DialogDescription>
+                  Se creará un miembro en el grupo Valientes con los datos del
+                  retiro. Esta acción es irreversible. Ley 1581
+                  pdtp-v1.0-2026-07-17
+                </DialogDescription>
+              </DialogHeader>
+              {transferTarget && (
+                <div className="space-y-2 text-sm">
+                  <p>
+                    <strong>Nombre:</strong> {transferTarget.name}
+                  </p>
+                  <p>
+                    <strong>Email:</strong> {transferTarget.email}
+                  </p>
+                  <p>
+                    <strong>Teléfono:</strong> {transferTarget.phone}
+                  </p>
+                  <p>
+                    <strong>Estado:</strong>{" "}
+                    {retreatStatusLabel(transferTarget.status)}
+                  </p>
+                </div>
+              )}
+              {transferDup && (
+                <p className="rounded-md border border-blue-200 bg-blue-50/80 px-3 py-2 text-sm text-blue-950">
+                  {transferDup.isAlreadyLinked
+                    ? `Vinculado al miembro existente${transferDup.name ? `: ${transferDup.name}` : ""}. Al transferir se actualizarán sus datos en Valientes sin crear duplicados.`
+                    : `Ya existe un miembro con ese email o teléfono${transferDup.name ? `: ${transferDup.name}` : ""}. Al transferir se vinculará y actualizará su registro en Valientes sin crear duplicados.`}
+                </p>
+              )}
+              <div className="flex items-center space-x-2 py-2">
+                <Checkbox
+                  id="transfer-consent"
+                  checked={transferConsent}
+                  onCheckedChange={(v) => setTransferConsent(v === true)}
+                />
+                <Label
+                  htmlFor="transfer-consent"
+                  className="text-sm font-normal"
+                >
+                  Acepto que mis datos se traten para mi incorporación al grupo
+                  Valientes como miembro asistente (Ley 1581
+                  pdtp-v1.0-2026-07-17)
+                </Label>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setTransferTarget(null);
+                    setTransferConsent(false);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  disabled={!transferConsent || transferring}
+                  onClick={() => void handleTransfer(false)}
+                >
+                  {transferring ? "Transfiriendo..." : "Transferir"}
+                </Button>
+              </DialogFooter>
+            </>
           )}
-          {transferDup && (
-            <p className="rounded-md border border-blue-200 bg-blue-50/80 px-3 py-2 text-sm text-blue-950">
-              {transferDup.isAlreadyLinked
-                ? `Vinculado al miembro existente${transferDup.name ? `: ${transferDup.name}` : ""}. Al transferir se actualizarán sus datos en Valientes sin crear duplicados.`
-                : `Ya existe un miembro con ese email o teléfono${transferDup.name ? `: ${transferDup.name}` : ""}. Al transferir se vinculará y actualizará su registro en Valientes sin crear duplicados.`}
-            </p>
-          )}
-          <div className="flex items-center space-x-2 py-2">
-            <Checkbox
-              id="transfer-consent"
-              checked={transferConsent}
-              onCheckedChange={(v) => setTransferConsent(v === true)}
-            />
-            <Label htmlFor="transfer-consent" className="text-sm font-normal">
-              Acepto que mis datos se traten para mi incorporación al grupo
-              Valientes como miembro asistente (Ley 1581 pdtp-v1.0-2026-07-17)
-            </Label>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setTransferTarget(null);
-                setTransferConsent(false);
-              }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              disabled={!transferConsent || transferring}
-              onClick={() => void handleTransfer()}
-            >
-              {transferring ? "Transfiriendo..." : "Transferir"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
