@@ -12,6 +12,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  ResponsiveTableCard,
+  ResponsiveTableCardFields,
+  ResponsiveTableCardHeader,
+  ResponsiveTableCards,
+} from "@/components/ui/responsive-table";
+import { useIsCompactTableViewport } from "@/hooks/useResponsiveTable";
 import { toast } from "sonner";
 import type { ChronicRow } from "@/lib/pastoreo/queries";
 import { NotifyButton } from "./NotifyButton";
@@ -22,6 +29,7 @@ interface Props {
 
 export function ChronicTable({ rows }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const isCompactViewport = useIsCompactTableViewport();
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -85,46 +93,88 @@ export function ChronicTable({ rows }: Props) {
         )}
       </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-10">
-                <Checkbox
-                  data-testid="select-all"
-                  checked={selected.size === rows.length && rows.length > 0}
-                  onCheckedChange={toggleAll}
-                />
-              </TableHead>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Edad</TableHead>
-              <TableHead>Sexo</TableHead>
-              <TableHead>Ultima asistencia</TableHead>
-              <TableHead>Racha</TableHead>
-              <TableHead>WhatsApp</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+      {isCompactViewport ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+            <Checkbox
+              data-testid="select-all"
+              checked={selected.size === rows.length && rows.length > 0}
+              onCheckedChange={toggleAll}
+            />
+            <span>Seleccionar todos ({rows.length})</span>
+          </div>
+          <ResponsiveTableCards>
             {rows.map((r) => (
-              <TableRow key={r.id} data-testid="chronic-row">
-                <TableCell>
-                  <Checkbox
-                    data-testid={`select-${r.id}`}
-                    checked={selected.has(r.id)}
-                    onCheckedChange={() => toggle(r.id)}
-                  />
-                </TableCell>
-                <TableCell>{r.name}</TableCell>
-                <TableCell>{r.ageYears ?? "-"}</TableCell>
-                <TableCell>{r.sex}</TableCell>
-                <TableCell>{r.lastAttendedDate ?? "-"}</TableCell>
-                <TableCell>{r.missedStreak}</TableCell>
-                <TableCell data-testid="phone-masked">{r.waNumberMasked}</TableCell>
-              </TableRow>
+              <ResponsiveTableCard key={r.id} data-testid="chronic-row">
+                <ResponsiveTableCardHeader
+                  leading={
+                    <Checkbox
+                      data-testid={`select-${r.id}`}
+                      checked={selected.has(r.id)}
+                      onCheckedChange={() => toggle(r.id)}
+                    />
+                  }
+                  title={r.name}
+                />
+                <ResponsiveTableCardFields
+                  fields={[
+                    { label: "Edad", value: r.ageYears ?? "-" },
+                    { label: "Sexo", value: r.sex },
+                    { label: "Ultima asistencia", value: r.lastAttendedDate ?? "-" },
+                    { label: "Racha", value: r.missedStreak },
+                    {
+                      label: "WhatsApp",
+                      value: <span data-testid="phone-masked">{r.waNumberMasked}</span>,
+                      fullWidth: true,
+                    },
+                  ]}
+                />
+              </ResponsiveTableCard>
             ))}
-          </TableBody>
-        </Table>
-      </div>
+          </ResponsiveTableCards>
+        </div>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    data-testid="select-all"
+                    checked={selected.size === rows.length && rows.length > 0}
+                    onCheckedChange={toggleAll}
+                  />
+                </TableHead>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Edad</TableHead>
+                <TableHead>Sexo</TableHead>
+                <TableHead>Ultima asistencia</TableHead>
+                <TableHead>Racha</TableHead>
+                <TableHead>WhatsApp</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((r) => (
+                <TableRow key={r.id} data-testid="chronic-row">
+                  <TableCell>
+                    <Checkbox
+                      data-testid={`select-${r.id}`}
+                      checked={selected.has(r.id)}
+                      onCheckedChange={() => toggle(r.id)}
+                    />
+                  </TableCell>
+                  <TableCell>{r.name}</TableCell>
+                  <TableCell>{r.ageYears ?? "-"}</TableCell>
+                  <TableCell>{r.sex}</TableCell>
+                  <TableCell>{r.lastAttendedDate ?? "-"}</TableCell>
+                  <TableCell>{r.missedStreak}</TableCell>
+                  <TableCell data-testid="phone-masked">{r.waNumberMasked}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 }

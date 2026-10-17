@@ -126,6 +126,14 @@ function mapMember(row: Record<string, unknown>): Member {
     is_minor: Boolean(row.is_minor),
     legal_rep_name: row.legal_rep_name ? String(row.legal_rep_name) : undefined,
     has_whatsapp: Boolean(row.has_whatsapp),
+    emergency_contact_name: row.emergency_contact_name ? String(row.emergency_contact_name) : undefined,
+    emergency_contact_relationship: row.emergency_contact_relationship ? String(row.emergency_contact_relationship) : undefined,
+    emergency_contact_phone: row.emergency_contact_phone ? String(row.emergency_contact_phone) : undefined,
+    has_medical_conditions: Boolean(row.has_medical_conditions),
+    medical_conditions: row.medical_conditions ? String(row.medical_conditions) : undefined,
+    medical_medications: row.medical_medications ? String(row.medical_medications) : undefined,
+    medical_dosage: row.medical_dosage ? String(row.medical_dosage) : undefined,
+    pastoral_group: row.pastoral_group ? String(row.pastoral_group) : null,
     consent_recorded: Boolean(row.consent_recorded),
     sensitive_consent_recorded: Boolean(row.sensitive_consent_recorded),
     duplicate_flag: Boolean(row.duplicate_flag),
@@ -209,7 +217,7 @@ async function runHydrate(): Promise<HydrateResult> {
   const [memberRows, sessionRows, attendanceRows, socialRows, whatsappRows] = await Promise.all([
     fetchAll(
       'members',
-      'id, name, name_normalized, phone, email, birthday, is_minor, legal_rep_name, has_whatsapp, consent_recorded, sensitive_consent_recorded, duplicate_flag, created_by, created_at, updated_at, deleted_at'
+      'id, name, name_normalized, phone, email, birthday, is_minor, legal_rep_name, has_whatsapp, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, has_medical_conditions, medical_conditions, medical_medications, medical_dosage, pastoral_group, consent_recorded, sensitive_consent_recorded, duplicate_flag, created_by, created_at, deleted_at, updated_at'
     ),
     fetchAll('sessions', 'id, name, session_date, created_by, created_at, deleted_at'),
     fetchAll('attendance', 'id, member_id, session_id, marked_by, marked_at'),

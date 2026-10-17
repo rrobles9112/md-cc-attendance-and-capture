@@ -38,6 +38,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  ResponsiveTableCard,
+  ResponsiveTableCardActions,
+  ResponsiveTableCardFields,
+  ResponsiveTableCardHeader,
+  ResponsiveTableCards,
+  ResponsiveTableEmpty,
+  type ResponsiveTableFieldItem,
+} from "@/components/ui/responsive-table";
+import { useIsCompactTableViewport } from "@/hooks/useResponsiveTable";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRole } from "@/hooks/useRole";
 import {
@@ -75,6 +85,12 @@ import {
   computeRowAbonos,
   getPaginationRange,
 } from "@/lib/retreat/queries";
+import {
+  findMatchingActiveMemberForTransfer,
+  normalizeColombianPhoneDigits,
+  requiresUnpaidTransferCheckpoint,
+  type TransferMemberMatch,
+} from "@/lib/retreat/transfer";
 import {
   getRetreatTotalCost,
   setRetreatTotalCost,
@@ -234,10 +250,9 @@ export default function RetreatRegistrationsPage() {
   const [transferTarget, setTransferTarget] =
     useState<RetreatRegistrationRow | null>(null);
   const [transferConsent, setTransferConsent] = useState(false);
-  const [transferDup, setTransferDup] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
+  const [transferDup, setTransferDup] = useState<TransferMemberMatch | null>(
+    null,
+  );
   const [transferring, setTransferring] = useState(false);
   const [editTarget, setEditTarget] = useState<RetreatRegistrationRow | null>(
     null,
@@ -261,6 +276,7 @@ export default function RetreatRegistrationsPage() {
     typeof navigator !== "undefined" ? navigator.onLine : true,
   );
   const [hasSession, setHasSession] = useState(true);
+  const isCompactViewport = useIsCompactTableViewport();
   const router = useRouter();
 
   const loadData = useCallback(async () => {
@@ -382,17 +398,19 @@ export default function RetreatRegistrationsPage() {
   }, [columnVisibility, density, tableHeight]);
 
   // Duplicate pre-check when the transfer dialog opens: email exact match OR
-  // phone containing the digits of the registration phone. The transfer RPC
-  // remains the authoritative validation; query errors surface no warning.
+  // phone containing the canonical 10-digit phone (matching +57 and plain
+  // 10-digit numbers). If a match is found, transfer links and updates the
+  // existing member in Valientes instead of creating a duplicate.
   useEffect(() => {
     if (!transferTarget) {
       setTransferDup(null);
       return;
     }
-    const email = (transferTarget.email ?? "").trim();
-    const digits = (transferTarget.phone ?? "").replace(/\D/g, "");
+    const email = (transferTarget.email ?? "").trim().toLowerCase();
+    const digits = normalizeColombianPhoneDigits(transferTarget.phone);
     const ors: string[] = [];
-    if (email) ors.push(`email.eq.${email}`);
+    if (transferTarget.member_id) ors.push(`id.eq.${transferTarget.member_id}`);
+    if (email) ors.push(`email.ilike.${email}`);
     if (digits) ors.push(`phone.like.%${digits}%`);
     if (ors.length === 0) {
       setTransferDup(null);
@@ -400,18 +418,28 @@ export default function RetreatRegistrationsPage() {
     }
     let cancelled = false;
     const supabase = createClient();
-    // SAFETY: supabase postgrest builder narrowed to typed select promise; or-filter returns id/name rows
+    // SAFETY: supabase postgrest builder narrowed to typed select promise; or-filter returns member rows
     void (
       supabase
         .from("members")
-        .select("id,name")
+        .select("id,name,email,phone,pastoral_group")
         .or(ors.join(","))
-        .limit(1) as unknown as Promise<{
-        data: Array<{ id: string; name: string }> | null;
+        .limit(5) as unknown as Promise<{
+        data: Array<{
+          id: string;
+          name: string;
+          email?: string | null;
+          phone?: string | null;
+          pastoral_group?: string | null;
+        }> | null;
         error: unknown;
       }>
     ).then(({ data }) => {
-      if (!cancelled) setTransferDup(data && data.length > 0 ? data[0] : null);
+      if (!cancelled) {
+        setTransferDup(
+          findMatchingActiveMemberForTransfer(transferTarget, data ?? []),
+        );
+      }
     });
     return () => {
       cancelled = true;
@@ -643,16 +671,20 @@ export default function RetreatRegistrationsPage() {
     }
   }
 
-  async function handleTransfer() {
-    if (!transferTarget || !transferConsent) return;
+  async function handleTransfer(allowUnpaid = false) {
+    if (!transferTarget) return;
+    if (!allowUnpaid && !transferConsent) return;
     setTransferring(true);
     try {
       const supabase = createClient();
+      const rpcArgs: Record<string, unknown> = {
+        p_registration_id: transferTarget.id,
+        p_allow_unpaid: allowUnpaid,
+        p_link_existing_member: true,
+      };
       const { data, error } = (await supabase.rpc(
         "transfer_retreat_to_valientes",
-        {
-          p_registration_id: transferTarget.id,
-        },
+        rpcArgs,
       )) as {
         data: string | null;
         error: { message: string; code?: string } | null;
@@ -1056,6 +1088,214 @@ export default function RetreatRegistrationsPage() {
         </DialogContent>
       </Dialog>
 
+      {isCompactViewport ? (
+        registrations.length === 0 ? (
+          <ResponsiveTableEmpty>
+            No hay preinscripciones registradas
+          </ResponsiveTableEmpty>
+        ) : (
+          <ResponsiveTableCards>
+            {registrations.map((registration) => {
+              const sumPaid = paidByRegistration.get(registration.id) ?? 0;
+              const remaining = remainingBalance(parsedTotal, sumPaid);
+              const rowPayments = payments.filter(
+                (p) => p.registration_id === registration.id,
+              );
+              const abonos = computeRowAbonos(rowPayments, storedTotal);
+              const pct = parsedTotal
+                ? Math.min(100, (sumPaid / parsedTotal) * 100)
+                : 0;
+              const cardFields: ResponsiveTableFieldItem[] = [];
+              if (columnVisibility.telefono) {
+                cardFields.push({
+                  label: "Teléfono",
+                  value: registration.phone || "—",
+                });
+              }
+              if (columnVisibility.estado) {
+                cardFields.push({
+                  label: "Estado",
+                  value: (
+                    <Badge variant={statusBadgeVariant(registration.status)}>
+                      {retreatStatusLabel(registration.status)}
+                    </Badge>
+                  ),
+                });
+              }
+              if (columnVisibility.email) {
+                cardFields.push({
+                  label: "Email",
+                  value: registration.email || "—",
+                  fullWidth: true,
+                });
+              }
+              cardFields.push({
+                label: "Pagado",
+                value: formatAmount(sumPaid),
+              });
+              if (columnVisibility.saldo) {
+                cardFields.push({
+                  label: "Saldo",
+                  value: remaining === null ? "—" : formatAmount(remaining),
+                });
+              }
+              if (columnVisibility.porcentaje) {
+                cardFields.push({
+                  label: "% Pagado",
+                  value:
+                    abonos.percent === null
+                      ? "—"
+                      : `${abonos.percent.toFixed(0)}%`,
+                });
+              }
+              if (columnVisibility.ultimoAbono) {
+                cardFields.push({
+                  label: "Último abono",
+                  value: abonos.last
+                    ? new Date(abonos.last).toLocaleDateString("es-CO", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      })
+                    : "—",
+                });
+              }
+              if (columnVisibility.salud) {
+                cardFields.push({
+                  label: "Salud",
+                  value: registration.has_medical_conditions
+                    ? [
+                        registration.medical_conditions,
+                        registration.medical_medications,
+                        registration.medical_dosage,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "Sí"
+                    : "No",
+                  fullWidth: true,
+                });
+              }
+              if (canMutate) {
+                cardFields.push({
+                  label: "Pagos",
+                  value:
+                    registration.status === "inscrito" ? (
+                      <Badge
+                        variant="secondary"
+                        className="bg-emerald-50 text-emerald-800"
+                      >
+                        Pagado ✓
+                      </Badge>
+                    ) : paymentsBlocked ? (
+                      <span className="text-xs text-muted-foreground">
+                        Pagos bloqueados
+                      </span>
+                    ) : !canRecordPayments ? (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="h-1.5 w-full rounded bg-secondary">
+                          <div
+                            className="h-1.5 rounded bg-primary"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          Pagado {formatAmount(sumPaid)} de{" "}
+                          {parsedTotal ? formatAmount(parsedTotal) : "—"}
+                        </span>
+                      </div>
+                    ),
+                  fullWidth: true,
+                });
+              }
+              return (
+                <ResponsiveTableCard key={registration.id}>
+                  <ResponsiveTableCardHeader
+                    title={registration.name}
+                    badges={
+                      <>
+                        {registration.transferred_at && (
+                          <Badge
+                            variant="secondary"
+                            className="bg-emerald-50 text-emerald-800"
+                            title={new Date(
+                              registration.transferred_at,
+                            ).toLocaleDateString("es-CO")}
+                          >
+                            Transferido ✓
+                          </Badge>
+                        )}
+                        {registration.has_medical_conditions && (
+                          <Badge variant="outline">Salud</Badge>
+                        )}
+                      </>
+                    }
+                  />
+                  <ResponsiveTableCardFields fields={cardFields} />
+                  {(canMutate || canDelete) && (
+                    <ResponsiveTableCardActions>
+                      {canMutate &&
+                        registration.status !== "inscrito" &&
+                        !paymentsBlocked &&
+                        canRecordPayments && (
+                          <Button
+                            size="sm"
+                            onClick={() => setPaymentTarget(registration)}
+                            aria-label={`Gestionar pagos de ${registration.name}`}
+                          >
+                            Gestionar pagos
+                          </Button>
+                        )}
+                      {canMutate &&
+                        columnVisibility.transferir &&
+                        !registration.transferred_at && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={
+                              !isOnline ||
+                              !hasSession ||
+                              !canTransferRetreatToValientes(role) ||
+                              transferring
+                            }
+                            onClick={() => {
+                              setTransferTarget(registration);
+                              setTransferConsent(false);
+                            }}
+                          >
+                            <UserPlus className="mr-1 h-4 w-4" /> Transferir a
+                            Valientes
+                          </Button>
+                        )}
+                      {canDelete && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label={`Editar preinscripción de ${registration.name}`}
+                            onClick={() => setEditTarget(registration)}
+                          >
+                            <Pencil className="mr-1 h-4 w-4" /> Editar
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            aria-label={`Eliminar preinscripción de ${registration.name}`}
+                            onClick={() => openDeleteDialog(registration)}
+                          >
+                            Eliminar
+                          </Button>
+                        </>
+                      )}
+                    </ResponsiveTableCardActions>
+                  )}
+                </ResponsiveTableCard>
+              );
+            })}
+          </ResponsiveTableCards>
+        )
+      ) : (
       <div
         className={`w-full max-w-full rounded-lg border ${tableScrollClass}`}
       >
@@ -1350,10 +1590,10 @@ export default function RetreatRegistrationsPage() {
                             title={
                               !isOnline || !hasSession
                                 ? "Requiere conexión"
-                                : registration.status !== "inscrito"
-                                  ? "Requiere estado Inscrito"
-                                  : !canTransferRetreatToValientes(role)
-                                    ? "Sin permisos"
+                                : !canTransferRetreatToValientes(role)
+                                  ? "Sin permisos"
+                                  : registration.status !== "inscrito"
+                                    ? "Requiere confirmación de transferencia sin pago total"
                                     : undefined
                             }
                           >
@@ -1361,7 +1601,6 @@ export default function RetreatRegistrationsPage() {
                               size="sm"
                               variant="secondary"
                               disabled={
-                                registration.status !== "inscrito" ||
                                 !isOnline ||
                                 !hasSession ||
                                 !canTransferRetreatToValientes(role) ||
@@ -1408,6 +1647,7 @@ export default function RetreatRegistrationsPage() {
           </TableBody>
         </Table>
       </div>
+      )}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm text-muted-foreground">
         <div>
@@ -1444,64 +1684,154 @@ export default function RetreatRegistrationsPage() {
         }}
       >
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Transferir a Valientes</DialogTitle>
-            <DialogDescription>
-              Se creará un miembro en el grupo Valientes con los datos del
-              retiro. Esta acción es irreversible. Ley 1581 pdtp-v1.0-2026-07-17
-            </DialogDescription>
-          </DialogHeader>
-          {transferTarget && (
-            <div className="space-y-2 text-sm">
-              <p>
-                <strong>Nombre:</strong> {transferTarget.name}
-              </p>
-              <p>
-                <strong>Email:</strong> {transferTarget.email}
-              </p>
-              <p>
-                <strong>Teléfono:</strong> {transferTarget.phone}
-              </p>
-              <p>
-                <strong>Estado:</strong>{" "}
-                {retreatStatusLabel(transferTarget.status)}
-              </p>
-            </div>
+          {transferTarget &&
+          requiresUnpaidTransferCheckpoint(transferTarget.status) ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  Confirmar transferencia a Valientes sin pago total
+                </DialogTitle>
+                <DialogDescription>
+                  Autorice pasar a esta persona preinscrita a miembro regular de
+                  las asambleas de Valientes (para poder tomar su asistencia sin
+                  haber pagado la totalidad del retiro). Ley 1581
+                  pdtp-v1.0-2026-07-17
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2 text-sm">
+                <p>
+                  <strong>Nombre:</strong> {transferTarget.name}
+                </p>
+                <p>
+                  <strong>Email:</strong> {transferTarget.email}
+                </p>
+                <p>
+                  <strong>Teléfono:</strong> {transferTarget.phone}
+                </p>
+                <p>
+                  <strong>Estado actual:</strong>{" "}
+                  {retreatStatusLabel(transferTarget.status)}
+                </p>
+                <p>
+                  <strong>Abonado:</strong>{" "}
+                  {formatAmount(paidByRegistration.get(transferTarget.id) ?? 0)}
+                  {parsedTotal !== null && (
+                    <>
+                      {" "}
+                      · <strong>Saldo pendiente:</strong>{" "}
+                      {formatAmount(
+                        remainingBalance(
+                          parsedTotal,
+                          paidByRegistration.get(transferTarget.id) ?? 0,
+                        ) ?? 0,
+                      )}
+                    </>
+                  )}
+                </p>
+              </div>
+              <div
+                role="alert"
+                className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+              >
+                ¿Autoriza transferir a <strong>{transferTarget.name}</strong> a
+                Valientes como miembro regular de asamblea aun sin haber
+                cancelado la totalidad del retiro?
+              </div>
+              {transferDup && (
+                <p className="rounded-md border border-blue-200 bg-blue-50/80 px-3 py-2 text-sm text-blue-950">
+                  {transferDup.isAlreadyLinked
+                    ? `Vinculado al miembro existente${transferDup.name ? `: ${transferDup.name}` : ""}. Al transferir se actualizarán sus datos en Valientes sin crear duplicados.`
+                    : `Ya existe un miembro con ese email o teléfono${transferDup.name ? `: ${transferDup.name}` : ""}. Al transferir se vinculará y actualizará su registro en Valientes sin crear duplicados.`}
+                </p>
+              )}
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setTransferTarget(null);
+                    setTransferConsent(false);
+                  }}
+                >
+                  No, cancelar
+                </Button>
+                <Button
+                  disabled={transferring}
+                  onClick={() => void handleTransfer(true)}
+                >
+                  {transferring
+                    ? "Transfiriendo..."
+                    : "Sí, transferir a Valientes"}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Transferir a Valientes</DialogTitle>
+                <DialogDescription>
+                  Se creará un miembro en el grupo Valientes con los datos del
+                  retiro. Esta acción es irreversible. Ley 1581
+                  pdtp-v1.0-2026-07-17
+                </DialogDescription>
+              </DialogHeader>
+              {transferTarget && (
+                <div className="space-y-2 text-sm">
+                  <p>
+                    <strong>Nombre:</strong> {transferTarget.name}
+                  </p>
+                  <p>
+                    <strong>Email:</strong> {transferTarget.email}
+                  </p>
+                  <p>
+                    <strong>Teléfono:</strong> {transferTarget.phone}
+                  </p>
+                  <p>
+                    <strong>Estado:</strong>{" "}
+                    {retreatStatusLabel(transferTarget.status)}
+                  </p>
+                </div>
+              )}
+              {transferDup && (
+                <p className="rounded-md border border-blue-200 bg-blue-50/80 px-3 py-2 text-sm text-blue-950">
+                  {transferDup.isAlreadyLinked
+                    ? `Vinculado al miembro existente${transferDup.name ? `: ${transferDup.name}` : ""}. Al transferir se actualizarán sus datos en Valientes sin crear duplicados.`
+                    : `Ya existe un miembro con ese email o teléfono${transferDup.name ? `: ${transferDup.name}` : ""}. Al transferir se vinculará y actualizará su registro en Valientes sin crear duplicados.`}
+                </p>
+              )}
+              <div className="flex items-center space-x-2 py-2">
+                <Checkbox
+                  id="transfer-consent"
+                  checked={transferConsent}
+                  onCheckedChange={(v) => setTransferConsent(v === true)}
+                />
+                <Label
+                  htmlFor="transfer-consent"
+                  className="text-sm font-normal"
+                >
+                  Acepto que mis datos se traten para mi incorporación al grupo
+                  Valientes como miembro asistente (Ley 1581
+                  pdtp-v1.0-2026-07-17)
+                </Label>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setTransferTarget(null);
+                    setTransferConsent(false);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  disabled={!transferConsent || transferring}
+                  onClick={() => void handleTransfer(false)}
+                >
+                  {transferring ? "Transfiriendo..." : "Transferir"}
+                </Button>
+              </DialogFooter>
+            </>
           )}
-          {transferDup && (
-            <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              Ya existe un miembro con ese email o teléfono
-              {transferDup.name ? `: ${transferDup.name}` : ""}
-            </p>
-          )}
-          <div className="flex items-center space-x-2 py-2">
-            <Checkbox
-              id="transfer-consent"
-              checked={transferConsent}
-              onCheckedChange={(v) => setTransferConsent(v === true)}
-            />
-            <Label htmlFor="transfer-consent" className="text-sm font-normal">
-              Acepto que mis datos se traten para mi incorporación al grupo
-              Valientes como miembro asistente (Ley 1581 pdtp-v1.0-2026-07-17)
-            </Label>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setTransferTarget(null);
-                setTransferConsent(false);
-              }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              disabled={!transferConsent || transferring || !!transferDup}
-              onClick={() => void handleTransfer()}
-            >
-              {transferring ? "Transfiriendo..." : "Transferir"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

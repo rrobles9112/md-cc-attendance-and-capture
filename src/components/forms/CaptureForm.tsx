@@ -185,6 +185,8 @@ export function CaptureForm({
       setLegalRepName(initialValues.legalRepName);
     if (initialValues.hasWhatsapp !== undefined)
       setHasWhatsapp(initialValues.hasWhatsapp);
+    if (initialValues.additionalWhatsapp !== undefined)
+      setAdditionalWhatsapp(initialValues.additionalWhatsapp);
     if (initialValues.hasMedicalConditions !== undefined)
       setHasMedicalConditions(initialValues.hasMedicalConditions);
     if (initialValues.medicalConditions !== undefined)
@@ -193,6 +195,12 @@ export function CaptureForm({
       setMedicalMedications(initialValues.medicalMedications);
     if (initialValues.medicalDosage !== undefined)
       setMedicalDosage(initialValues.medicalDosage);
+    if (initialValues.emergencyContactName !== undefined)
+      setEmergencyContactName(initialValues.emergencyContactName);
+    if (initialValues.emergencyContactRelationship !== undefined)
+      setEmergencyContactRelationship(initialValues.emergencyContactRelationship);
+    if (initialValues.emergencyContactPhone !== undefined)
+      setEmergencyContactPhone(initialValues.emergencyContactPhone);
   }, [initialValues, handleBirthdayChange]);
 
   function addSocialMedia() {

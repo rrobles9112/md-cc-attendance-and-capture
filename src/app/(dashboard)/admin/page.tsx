@@ -24,6 +24,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  ResponsiveTableCard,
+  ResponsiveTableCardActions,
+  ResponsiveTableCardFields,
+  ResponsiveTableCardHeader,
+  ResponsiveTableCards,
+  ResponsiveTableEmpty,
+} from '@/components/ui/responsive-table'
+import { useIsCompactTableViewport } from '@/hooks/useResponsiveTable'
 import { toast } from 'sonner'
 import { UsersPanel } from '@/components/admin/UsersPanel'
 
@@ -31,6 +40,7 @@ type AdminTab = 'users' | 'audit' | 'arco' | 'settings' | 'sync' | 'purge'
 
 export default function AdminPage() {
   const { role } = useRole()
+  const isCompactViewport = useIsCompactTableViewport()
   const { status: syncStatus, pendingCount } = useSync()
   const [activeTab, setActiveTab] = useState<AdminTab>('users')
   const [users, setUsers] = useState<Array<{ id: string; full_name: string; role: string; is_active: boolean; created_at: string }>>([])
@@ -240,40 +250,73 @@ export default function AdminPage() {
                 </select>
               </div>
             </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Acción</TableHead>
-                  <TableHead>Tabla</TableHead>
-                  <TableHead className="hidden sm:table-cell">Registro</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {auditLogs.length === 0 ? (
+            {isCompactViewport ? (
+              auditLogs.length === 0 ? (
+                <ResponsiveTableEmpty>No hay registros de auditoría</ResponsiveTableEmpty>
+              ) : (
+                <ResponsiveTableCards>
+                  {auditLogs.map((log) => (
+                    <ResponsiveTableCard key={log.id}>
+                      <ResponsiveTableCardHeader
+                        title={log.table_name}
+                        badges={<Badge variant="outline">{log.action}</Badge>}
+                      />
+                      <ResponsiveTableCardFields
+                        fields={[
+                          {
+                            label: 'Fecha',
+                            value: new Date(log.created_at).toLocaleString('es-CO'),
+                          },
+                          {
+                            label: 'Registro',
+                            value: (
+                              <span className="font-mono text-xs">
+                                {log.record_id ? `${log.record_id.slice(0, 8)}...` : '—'}
+                              </span>
+                            ),
+                          },
+                        ]}
+                      />
+                    </ResponsiveTableCard>
+                  ))}
+                </ResponsiveTableCards>
+              )
+            ) : (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
-                      No hay registros de auditoría
-                    </TableCell>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Acción</TableHead>
+                    <TableHead>Tabla</TableHead>
+                    <TableHead className="hidden sm:table-cell">Registro</TableHead>
                   </TableRow>
-                ) : (
-                  auditLogs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="text-sm">
-                        {new Date(log.created_at).toLocaleString('es-CO')}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{log.action}</Badge>
-                      </TableCell>
-                      <TableCell>{log.table_name}</TableCell>
-                      <TableCell className="hidden sm:table-cell font-mono text-xs">
-                        {log.record_id?.slice(0, 8)}...
+                </TableHeader>
+                <TableBody>
+                  {auditLogs.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        No hay registros de auditoría
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    auditLogs.map((log) => (
+                      <TableRow key={log.id}>
+                        <TableCell className="text-sm">
+                          {new Date(log.created_at).toLocaleString('es-CO')}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{log.action}</Badge>
+                        </TableCell>
+                        <TableCell>{log.table_name}</TableCell>
+                        <TableCell className="hidden sm:table-cell font-mono text-xs">
+                          {log.record_id?.slice(0, 8)}...
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       )}
@@ -287,6 +330,44 @@ export default function AdminPage() {
           <CardContent>
             {arcoRequests.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">No hay solicitudes pendientes</p>
+            ) : isCompactViewport ? (
+              <ResponsiveTableCards>
+                {arcoRequests.map((req) => (
+                  <ResponsiveTableCard key={req.id}>
+                    <ResponsiveTableCardHeader
+                      title={<Badge variant="outline">{req.request_type}</Badge>}
+                      badges={
+                        <Badge
+                          variant={req.status === 'overdue' ? 'destructive' : req.status === 'pending' ? 'secondary' : 'default'}
+                        >
+                          {req.status === 'pending' ? 'Pendiente' : req.status === 'in_progress' ? 'En proceso' : req.status === 'overdue' ? 'Vencida' : req.status}
+                        </Badge>
+                      }
+                    />
+                    <ResponsiveTableCardFields
+                      fields={[
+                        {
+                          label: 'Fecha límite',
+                          value: new Date(req.deadline).toLocaleDateString('es-CO'),
+                        },
+                        {
+                          label: 'Notas',
+                          value: req.notes || '—',
+                          fullWidth: true,
+                        },
+                      ]}
+                    />
+                    <ResponsiveTableCardActions>
+                      <Button size="sm" variant="outline" onClick={() => handleUpdateArcoStatus(req.id, 'in_progress')}>
+                        Iniciar
+                      </Button>
+                      <Button size="sm" onClick={() => handleFulfillArco(req.id)}>
+                        Completar
+                      </Button>
+                    </ResponsiveTableCardActions>
+                  </ResponsiveTableCard>
+                ))}
+              </ResponsiveTableCards>
             ) : (
               <Table>
                 <TableHeader>
@@ -404,39 +485,77 @@ export default function AdminPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tabla</TableHead>
-                  <TableHead>Operación</TableHead>
-                  <TableHead>Error</TableHead>
-                  <TableHead className="hidden md:table-cell">Fecha</TableHead>
-                  <TableHead>Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            {isCompactViewport ? (
+              <ResponsiveTableCards>
                 {failedQueueItems.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.table_name}</TableCell>
-                    <TableCell>{item.operation}</TableCell>
-                    <TableCell className="max-w-xs truncate text-destructive" title={item.error}>
-                      {item.error ?? 'Error desconocido'}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {new Date(item.created_at).toLocaleString('es-CO')}
-                    </TableCell>
-                    <TableCell className="space-x-2">
+                  <ResponsiveTableCard key={item.id}>
+                    <ResponsiveTableCardHeader
+                      title={item.table_name}
+                      badges={<Badge variant="outline">{item.operation}</Badge>}
+                    />
+                    <ResponsiveTableCardFields
+                      fields={[
+                        {
+                          label: 'Fecha',
+                          value: new Date(item.created_at).toLocaleString('es-CO'),
+                        },
+                        {
+                          label: 'Error',
+                          value: (
+                            <span className="text-destructive">
+                              {item.error ?? 'Error desconocido'}
+                            </span>
+                          ),
+                          fullWidth: true,
+                        },
+                      ]}
+                    />
+                    <ResponsiveTableCardActions>
                       <Button variant="outline" size="sm" onClick={() => handleRetryQueueItem(item.id)}>
                         Reintentar
                       </Button>
                       <Button variant="destructive" size="sm" onClick={() => handleDiscardQueueItem(item.id)}>
                         Descartar
                       </Button>
-                    </TableCell>
-                  </TableRow>
+                    </ResponsiveTableCardActions>
+                  </ResponsiveTableCard>
                 ))}
-              </TableBody>
-            </Table>
+              </ResponsiveTableCards>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tabla</TableHead>
+                    <TableHead>Operación</TableHead>
+                    <TableHead>Error</TableHead>
+                    <TableHead className="hidden md:table-cell">Fecha</TableHead>
+                    <TableHead>Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {failedQueueItems.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">{item.table_name}</TableCell>
+                      <TableCell>{item.operation}</TableCell>
+                      <TableCell className="max-w-xs truncate text-destructive" title={item.error}>
+                        {item.error ?? 'Error desconocido'}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {new Date(item.created_at).toLocaleString('es-CO')}
+                      </TableCell>
+                      <TableCell className="space-x-2">
+                        <Button variant="outline" size="sm" onClick={() => handleRetryQueueItem(item.id)}>
+                          Reintentar
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleDiscardQueueItem(item.id)}>
+                          Descartar
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       )}

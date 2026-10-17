@@ -23,6 +23,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  ResponsiveTableCard,
+  ResponsiveTableCardActions,
+  ResponsiveTableCardFields,
+  ResponsiveTableCardHeader,
+  ResponsiveTableCards,
+} from '@/components/ui/responsive-table'
+import { useIsCompactTableViewport } from '@/hooks/useResponsiveTable'
 import { toast } from 'sonner'
 
 export interface ManagedUser {
@@ -42,6 +50,7 @@ interface UsersPanelProps {
 const EMPTY_CREATE = { full_name: '', email: '', password: '', role: 'server' as AppRole }
 
 export function UsersPanel({ users, currentUserId, onChanged }: UsersPanelProps) {
+  const isCompactViewport = useIsCompactTableViewport()
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(EMPTY_CREATE)
   const [saving, setSaving] = useState(false)
@@ -170,31 +179,39 @@ export function UsersPanel({ users, currentUserId, onChanged }: UsersPanelProps)
         </form>
       )}
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Nombre</TableHead>
-            <TableHead>Rol</TableHead>
-            <TableHead className="hidden sm:table-cell">Estado</TableHead>
-            <TableHead className="hidden md:table-cell">Registro</TableHead>
-            <TableHead>Acciones</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+      {isCompactViewport ? (
+        <ResponsiveTableCards>
           {users.map((user) => (
-            <TableRow key={user.id}>
-              <TableCell className="font-medium">{user.full_name}</TableCell>
-              <TableCell>{ROLE_LABELS[user.role as AppRole] ?? user.role}</TableCell>
-              <TableCell className="hidden sm:table-cell">
-                <Badge variant={user.is_active ? 'default' : 'destructive'}>
-                  {user.is_active ? 'Activo' : 'Inactivo'}
-                </Badge>
-              </TableCell>
-              <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                {new Date(user.created_at).toLocaleDateString('es-CO')}
-              </TableCell>
-              <TableCell className="space-x-2">
-                <Button variant="ghost" size="sm" onClick={() => openEdit(user)}>Editar</Button>
+            <ResponsiveTableCard key={user.id}>
+              <ResponsiveTableCardHeader
+                title={user.full_name}
+                badges={
+                  <Badge variant={user.is_active ? 'default' : 'destructive'}>
+                    {user.is_active ? 'Activo' : 'Inactivo'}
+                  </Badge>
+                }
+              />
+              <ResponsiveTableCardFields
+                fields={[
+                  {
+                    label: 'Rol',
+                    value: ROLE_LABELS[user.role as AppRole] ?? user.role,
+                  },
+                  {
+                    label: 'Estado',
+                    value: user.is_active ? 'Activo' : 'Inactivo',
+                  },
+                  {
+                    label: 'Registro',
+                    value: new Date(user.created_at).toLocaleDateString('es-CO'),
+                    fullWidth: true,
+                  },
+                ]}
+              />
+              <ResponsiveTableCardActions>
+                <Button variant="ghost" size="sm" onClick={() => openEdit(user)}>
+                  Editar
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -203,11 +220,50 @@ export function UsersPanel({ users, currentUserId, onChanged }: UsersPanelProps)
                 >
                   Eliminar
                 </Button>
-              </TableCell>
-            </TableRow>
+              </ResponsiveTableCardActions>
+            </ResponsiveTableCard>
           ))}
-        </TableBody>
-      </Table>
+        </ResponsiveTableCards>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Rol</TableHead>
+              <TableHead className="hidden sm:table-cell">Estado</TableHead>
+              <TableHead className="hidden md:table-cell">Registro</TableHead>
+              <TableHead>Acciones</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {users.map((user) => (
+              <TableRow key={user.id}>
+                <TableCell className="font-medium">{user.full_name}</TableCell>
+                <TableCell>{ROLE_LABELS[user.role as AppRole] ?? user.role}</TableCell>
+                <TableCell className="hidden sm:table-cell">
+                  <Badge variant={user.is_active ? 'default' : 'destructive'}>
+                    {user.is_active ? 'Activo' : 'Inactivo'}
+                  </Badge>
+                </TableCell>
+                <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                  {new Date(user.created_at).toLocaleDateString('es-CO')}
+                </TableCell>
+                <TableCell className="space-x-2">
+                  <Button variant="ghost" size="sm" onClick={() => openEdit(user)}>Editar</Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={user.id === currentUserId}
+                    onClick={() => handleDelete(user)}
+                  >
+                    Eliminar
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
 
       <Dialog open={!!editing} onOpenChange={(open) => { if (!open) setEditing(null) }}>
         <DialogContent>

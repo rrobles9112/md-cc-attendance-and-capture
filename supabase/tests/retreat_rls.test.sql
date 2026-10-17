@@ -1435,3 +1435,181 @@ BEGIN
 END $$;
 
 ROLLBACK;
+
+-- =============================================================================
+-- 027 deduplication, bidirectional member<->retreat sync, and unpaid checkpoint
+-- =============================================================================
+
+BEGIN;
+
+DO $$
+DECLARE
+  v_super uuid := 'a0000000-0000-4000-8000-000000000001';
+  v_reg_paid uuid;
+  v_reg_unpaid uuid;
+  v_reg_dup_phone uuid;
+  v_reg_future uuid;
+  v_member_from_paid uuid;
+  v_member_from_unpaid uuid;
+  v_member_linked uuid;
+  v_members_before int;
+  v_members_after int;
+  v_has_med boolean;
+  v_med_cond text;
+  v_med_meds text;
+  v_med_dose text;
+  v_ename text;
+  v_erel text;
+  v_ephone text;
+  v_pastoral text;
+BEGIN
+  IF (SELECT count(*) FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'members'
+        AND column_name IN ('has_medical_conditions', 'medical_conditions', 'medical_medications', 'medical_dosage')) <> 4 THEN
+    RAISE EXCEPTION 'FAIL: members is missing medical columns (027)';
+  END IF;
+
+  IF public.normalize_colombian_phone_digits('+57 300-123-4567') <> '3001234567'
+     OR public.normalize_colombian_phone_digits('3001234567') <> '3001234567' THEN
+    RAISE EXCEPTION 'FAIL: normalize_colombian_phone_digits did not normalize +57 phone';
+  END IF;
+  RAISE NOTICE 'PASS: 027 schema columns and normalize_colombian_phone_digits verified';
+
+  -- 1) Preinscrito with medical + emergency contact transferred to Valientes
+  --    copies all fields to members
+  SET LOCAL ROLE anon;
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
+  v_reg_paid := public.register_retreat_preinscription(
+    p_name := 'Valiente Completo',
+    p_phone := '+57 300 765 4321',
+    p_email := 'valiente-completo-027@example.com',
+    p_birthday := DATE '1999-05-20',
+    p_general_consent := true,
+    p_has_whatsapp := true,
+    p_whatsapp_number := '3007654322',
+    p_has_medical_conditions := true,
+    p_medical_conditions := 'Alergia al maní',
+    p_medical_medications := 'Epinefrina',
+    p_medical_dosage := '1 dosis SOS',
+    p_emergency_contact_name := 'Carlos Padre',
+    p_emergency_contact_relationship := 'padre',
+    p_emergency_contact_phone := '3007650000'
+  );
+  RESET ROLE;
+
+  UPDATE public.retreat_registrations SET status = 'inscrito' WHERE id = v_reg_paid;
+
+  SET LOCAL ROLE authenticated;
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_super::text, 'app_metadata', json_build_object('role', 'super_admin'))::text, true);
+  v_member_from_paid := public.transfer_retreat_to_valientes(v_reg_paid);
+  RESET ROLE;
+
+  SELECT m.pastoral_group, m.has_medical_conditions, m.medical_conditions, m.medical_medications, m.medical_dosage,
+         m.emergency_contact_name, m.emergency_contact_relationship, m.emergency_contact_phone
+    INTO v_pastoral, v_has_med, v_med_cond, v_med_meds, v_med_dose, v_ename, v_erel, v_ephone
+  FROM public.members m WHERE m.id = v_member_from_paid;
+
+  IF v_pastoral IS DISTINCT FROM 'Valientes'
+     OR v_has_med IS NOT TRUE
+     OR v_med_cond IS DISTINCT FROM 'Alergia al maní'
+     OR v_med_meds IS DISTINCT FROM 'Epinefrina'
+     OR v_med_dose IS DISTINCT FROM '1 dosis SOS'
+     OR v_ename IS DISTINCT FROM 'Carlos Padre'
+     OR v_erel IS DISTINCT FROM 'padre'
+     OR v_ephone IS DISTINCT FROM '3007650000' THEN
+    RAISE EXCEPTION 'FAIL: transfer_retreat_to_valientes must propagate medical and emergency contact to members';
+  END IF;
+  RAISE NOTICE 'PASS: transfer_retreat_to_valientes propagates medical + emergency contact to members';
+
+  -- 2) Unpaid preinscrito transferred with p_allow_unpaid := true succeeds
+  SET LOCAL ROLE anon;
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
+  v_reg_unpaid := public.register_retreat_preinscription(
+    p_name := 'Valiente Sin Pago',
+    p_phone := '3008889900',
+    p_email := 'valiente-sin-pago-027@example.com',
+    p_birthday := DATE '2001-03-10',
+    p_general_consent := true
+  );
+  RESET ROLE;
+
+  SET LOCAL ROLE authenticated;
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_super::text, 'app_metadata', json_build_object('role', 'super_admin'))::text, true);
+  v_member_from_unpaid := public.transfer_retreat_to_valientes(v_reg_unpaid, true, true);
+  RESET ROLE;
+
+  SELECT m.pastoral_group INTO v_pastoral FROM public.members m WHERE m.id = v_member_from_unpaid;
+  IF v_pastoral IS DISTINCT FROM 'Valientes' THEN
+    RAISE EXCEPTION 'FAIL: unpaid transfer with p_allow_unpaid=true must set pastoral_group=Valientes';
+  END IF;
+  RAISE NOTICE 'PASS: unpaid transfer with p_allow_unpaid=true succeeds';
+
+  -- 3) Deduplication: when an existing member has '+573008889900' and a new
+  --    event registration has '3008889900' with p_link_existing_member=true,
+  --    transfer links to the existing member without creating a duplicate row.
+  INSERT INTO public.retreat_registrations (
+    event_key, name, phone, email, birthday, is_minor, status,
+    general_consent_accepted_at, general_consent_policy_version,
+    has_medical_conditions, medical_conditions
+  ) VALUES (
+    'retiro-futuro-2027',
+    'Valiente Sin Pago',
+    '3008889900',
+    'otro-correo-mismo-tel@example.com',
+    DATE '2001-03-10',
+    false,
+    'preinscrito',
+    now(),
+    'pdtp-v1.0-2026-07-17',
+    true,
+    'Migraña'
+  ) RETURNING id INTO v_reg_dup_phone;
+
+  SELECT count(*) INTO v_members_before FROM public.members;
+  SET LOCAL ROLE authenticated;
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_super::text, 'app_metadata', json_build_object('role', 'super_admin'))::text, true);
+  v_member_linked := public.transfer_retreat_to_valientes(v_reg_dup_phone, true, true);
+  RESET ROLE;
+  SELECT count(*) INTO v_members_after FROM public.members;
+
+  IF v_member_linked IS DISTINCT FROM v_member_from_unpaid OR v_members_after <> v_members_before THEN
+    RAISE EXCEPTION 'FAIL: transfer with p_link_existing_member=true must reuse existing +57 member without duplicating';
+  END IF;
+  SELECT m.has_medical_conditions, m.medical_conditions
+    INTO v_has_med, v_med_cond
+  FROM public.members m WHERE m.id = v_member_linked;
+  IF v_has_med IS NOT TRUE OR v_med_cond IS DISTINCT FROM 'Migraña' THEN
+    RAISE EXCEPTION 'FAIL: linked transfer must backfill new medical conditions onto existing member';
+  END IF;
+  RAISE NOTICE 'PASS: deduplicated transfer links +57 member and backfills medical conditions';
+
+  -- 4) Viceversa (2d): existing member registers for retreat via
+  --    register_retreat_preinscription_for_member; inherits existing member
+  --    data and backfills newly completed emergency contact onto members.
+  DELETE FROM public.retreat_registrations WHERE id = v_reg_unpaid;
+  SET LOCAL ROLE authenticated;
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', v_super::text, 'app_metadata', json_build_object('role', 'super_admin'))::text, true);
+  v_reg_future := public.register_retreat_preinscription_for_member(
+    p_member_id := v_member_from_unpaid,
+    p_general_consent := true,
+    p_emergency_contact_name := 'Lucía Hermana',
+    p_emergency_contact_relationship := 'familiar',
+    p_emergency_contact_phone := '3005551122'
+  );
+  RESET ROLE;
+
+  SELECT r.has_medical_conditions, r.medical_conditions, r.emergency_contact_name
+    INTO v_has_med, v_med_cond, v_ename
+  FROM public.retreat_registrations r WHERE r.id = v_reg_future;
+  IF v_has_med IS NOT TRUE OR v_med_cond IS DISTINCT FROM 'Migraña' OR v_ename IS DISTINCT FROM 'Lucía Hermana' THEN
+    RAISE EXCEPTION 'FAIL: member preinscription must inherit member medical data and store new emergency contact';
+  END IF;
+
+  SELECT m.emergency_contact_name INTO v_ename FROM public.members m WHERE m.id = v_member_from_unpaid;
+  IF v_ename IS DISTINCT FROM 'Lucía Hermana' THEN
+    RAISE EXCEPTION 'FAIL: member preinscription must backfill completed emergency contact to members';
+  END IF;
+  RAISE NOTICE 'PASS: member->retreat preinscription inherits existing data and backfills missing data to members';
+END $$;
+
+ROLLBACK;

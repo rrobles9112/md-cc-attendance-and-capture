@@ -25,6 +25,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  ResponsiveTableCard,
+  ResponsiveTableCardActions,
+  ResponsiveTableCardFields,
+  ResponsiveTableCardHeader,
+  ResponsiveTableCards,
+  ResponsiveTableEmpty,
+} from "@/components/ui/responsive-table";
+import { useIsCompactTableViewport } from "@/hooks/useResponsiveTable";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -44,26 +53,19 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getBirthdaysOfMonth, getNewMembers } from "@/lib/members/highlights";
 import { buildMemberUpdate } from "@/lib/members/update";
-import { CaptureForm, type CaptureFormInitialValues } from "@/components/forms/CaptureForm";
+import { CaptureForm } from "@/components/forms/CaptureForm";
+import {
+  getMissingRetreatMemberFields,
+  memberToCaptureInitialValues,
+} from "@/lib/retreat/member-prefill";
 import { submitRetreatPreinscriptionForMember } from "@/lib/retreat/submit-adapter";
 import { RETREAT_EVENT_KEY } from "@/lib/retreat/constants";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
-function memberToInitialValues(member: Member): CaptureFormInitialValues {
-  return {
-    name: member.name,
-    phone: member.phone,
-    email: member.email,
-    birthday: member.birthday ?? "",
-    isMinor: member.is_minor,
-    legalRepName: member.legal_rep_name ?? "",
-    hasWhatsapp: member.has_whatsapp,
-  };
-}
-
 export default function MembersPage() {
   const { role } = useRole();
+  const isCompactViewport = useIsCompactTableViewport();
   const router = useRouter();
   const [members, setMembers] = useState<Member[]>([]);
   const [search, setSearch] = useState("");
@@ -317,6 +319,93 @@ export default function MembersPage() {
             <Badge variant="outline">{filteredMembers.length} miembros</Badge>
           </div>
 
+          {isCompactViewport ? (
+            filteredMembers.length === 0 ? (
+              <ResponsiveTableEmpty>
+                {search
+                  ? "No se encontraron miembros"
+                  : "No hay miembros registrados"}
+              </ResponsiveTableEmpty>
+            ) : (
+              <ResponsiveTableCards>
+                {filteredMembers.map((member) => (
+                  <ResponsiveTableCard key={member.id}>
+                    <ResponsiveTableCardHeader
+                      title={member.name}
+                      badges={
+                        <>
+                          {member.duplicate_flag && (
+                            <Badge variant="destructive" className="text-[10px]">
+                              Duplicado
+                            </Badge>
+                          )}
+                          {member.is_minor && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] bg-amber-50 text-amber-800"
+                            >
+                              Menor
+                            </Badge>
+                          )}
+                        </>
+                      }
+                    />
+                    <ResponsiveTableCardFields
+                      fields={[
+                        { label: "Teléfono", value: member.phone || "—" },
+                        { label: "Email", value: member.email || "—" },
+                        {
+                          label: "WhatsApp",
+                          value: member.has_whatsapp ? (
+                            <Badge
+                              variant="outline"
+                              className="bg-green-50 text-green-800"
+                            >
+                              Sí
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">No</span>
+                          ),
+                        },
+                      ]}
+                    />
+                    <ResponsiveTableCardActions>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Ver a ${member.name}`}
+                        onClick={() => handleViewMember(member)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      {role && canModify(role) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Editar a ${member.name}`}
+                          onClick={() => {
+                            void handleViewMember(member).then(() => setEditing(true));
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {role && canDelete(role) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Eliminar a ${member.name}`}
+                          onClick={() => handleDeleteMember(member)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </ResponsiveTableCardActions>
+                  </ResponsiveTableCard>
+                ))}
+              </ResponsiveTableCards>
+            )
+          ) : (
           <div className="rounded-lg border">
         <Table>
           <TableHeader>
@@ -417,6 +506,7 @@ export default function MembersPage() {
           </TableBody>
         </Table>
       </div>
+          )}
         </TabsContent>
 
         <TabsContent value="highlights" className="space-y-4">
@@ -731,13 +821,60 @@ export default function MembersPage() {
             </DialogDescription>
           </DialogHeader>
           {selectedMember && (
-            <CaptureForm
-              variant="retreat"
-              initialValues={memberToInitialValues(selectedMember)}
-              submitAdapter={async (payload) => {
-                try {
-                  await submitRetreatPreinscriptionForMember(selectedMember.id, payload);
-                } catch (e: unknown) {
+            <>
+              {(() => {
+                const missingFields = getMissingRetreatMemberFields(selectedMember);
+                return (
+                  <div className="rounded-md border border-blue-200 bg-blue-50/70 px-3 py-2 text-xs text-blue-950">
+                    <p className="font-medium">
+                      Datos cargados desde el directorio de miembros (no se volverá a crear el miembro).
+                    </p>
+                    {missingFields.length > 0 && (
+                      <p className="mt-1 text-blue-900">
+                        Datos pendientes por completar:{" "}
+                        <span className="font-medium">{missingFields.join(", ")}</span>.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+              <CaptureForm
+                variant="retreat"
+                initialValues={memberToCaptureInitialValues(
+                  selectedMember,
+                  whatsappNumbers,
+                )}
+                submitAdapter={async (payload) => {
+                  try {
+                    await submitRetreatPreinscriptionForMember(selectedMember.id, payload);
+                    if (typeof db.members?.update === "function") {
+                      await db.members.update(selectedMember.id, {
+                        birthday: payload.birthday || selectedMember.birthday,
+                        is_minor: payload.isMinor,
+                        legal_rep_name: payload.legalRepName || selectedMember.legal_rep_name,
+                        has_whatsapp: payload.hasWhatsapp || selectedMember.has_whatsapp,
+                        has_medical_conditions:
+                          payload.hasMedicalConditions ||
+                          Boolean(selectedMember.has_medical_conditions),
+                        medical_conditions:
+                          payload.medicalConditions || selectedMember.medical_conditions,
+                        medical_medications:
+                          payload.medicalMedications || selectedMember.medical_medications,
+                        medical_dosage:
+                          payload.medicalDosage || selectedMember.medical_dosage,
+                        emergency_contact_name:
+                          payload.emergencyContactName ||
+                          selectedMember.emergency_contact_name,
+                        emergency_contact_relationship:
+                          payload.emergencyContactRelationship ||
+                          selectedMember.emergency_contact_relationship,
+                        emergency_contact_phone:
+                          payload.emergencyContactPhone ||
+                          selectedMember.emergency_contact_phone,
+                        updated_at: new Date().toISOString(),
+                      });
+                    }
+                  } catch (e: unknown) {
                   const msg = e instanceof Error ? e.message : String(e);
                   const code = (e as { code?: string })?.code;
                   if (msg.includes("already_preinscribed") || code === "23505") {
@@ -769,8 +906,10 @@ export default function MembersPage() {
                 });
                 setRetreatDialogOpen(false);
                 void refreshBadge(selectedMember.id);
+                void loadMembers();
               }}
             />
+            </>
           )}
         </DialogContent>
       </Dialog>
