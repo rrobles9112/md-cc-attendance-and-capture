@@ -76,6 +76,55 @@ describe('resolveAttendanceConflict', () => {
     expect(mockAdd).toHaveBeenCalled()
   })
 
+  it('returns the record to enqueue, reusing the existing id when the pair is already marked locally', async () => {
+    const existing = {
+      id: 'att-1',
+      member_id: 'member-1',
+      session_id: 'session-1',
+      marked_by: 'user-old',
+      marked_at: '2026-07-17T09:00:00Z',
+    }
+    mockWhere.mockReturnValue({
+      equals: () => ({ first: () => Promise.resolve(existing) }),
+    })
+
+    const record = await resolveAttendanceConflict(
+      'member-1',
+      'session-1',
+      'user-new',
+      '2026-07-17T10:00:00Z',
+      'att-should-not-be-used',
+    )
+
+    // Reusing att-1 keeps the remote upsert on the same PK; creating a new id
+    // for the same (member_id, session_id) pair fails remotely with 23505.
+    expect(record.id).toBe('att-1')
+    expect(mockAdd).not.toHaveBeenCalled()
+  })
+
+  it('creates the local row with the caller-provided id when none exists', async () => {
+    mockWhere.mockReturnValue({
+      equals: () => ({ first: () => Promise.resolve(null) }),
+    })
+
+    const record = await resolveAttendanceConflict(
+      'member-1',
+      'session-1',
+      'user-1',
+      '2026-07-17T10:00:00Z',
+      'att-new',
+    )
+
+    expect(record).toEqual({
+      id: 'att-new',
+      member_id: 'member-1',
+      session_id: 'session-1',
+      marked_by: 'user-1',
+      marked_at: '2026-07-17T10:00:00Z',
+    })
+    expect(mockAdd).toHaveBeenCalledWith(expect.objectContaining({ id: 'att-new' }))
+  })
+
   it('updates when new timestamp is later (LWW)', async () => {
     const existing = {
       id: 'att-1',

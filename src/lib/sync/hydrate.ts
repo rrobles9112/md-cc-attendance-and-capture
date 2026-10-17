@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
 import { db, type Member, type Session, type Attendance, type SocialMedia, type WhatsAppNumber } from './db'
+import { formatSyncError } from './errors'
 
 export type HydrateTableName =
   | 'members'
@@ -319,7 +320,7 @@ export function hydrateFromRemote(options?: { force?: boolean }): Promise<Hydrat
         ok: false,
         skipped: false,
         counts: {},
-        error: err instanceof Error ? err.message : String(err),
+        error: formatSyncError(err),
       }
       notifyListeners(result)
       return result

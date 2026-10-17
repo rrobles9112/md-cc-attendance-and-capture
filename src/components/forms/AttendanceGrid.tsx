@@ -129,30 +129,45 @@ export function AttendanceGrid({ sessions, onSessionCreated }: AttendanceGridPro
     const existing = attendanceMap[memberId]
 
     if (existing) {
-      await db.attendance.delete(existing.id)
+      // Delete every local row for the pair, not just the one in the map:
+      // legacy duplicates (two ids for the same pair) would otherwise keep
+      // the member marked after reload/hydration.
+      const localRows = await db.attendance
+        .where('[member_id+session_id]')
+        .equals([memberId, selectedSessionId])
+        .toArray()
+      const idsToDelete = new Set<string>([
+        existing.id,
+        ...localRows.map((row) => row.id),
+      ])
+      for (const id of idsToDelete) {
+        await db.attendance.delete(id)
+      }
       setAttendanceMap((prev) => {
         const next = { ...prev }
         delete next[memberId]
         return next
       })
-      await enqueue('attendance', existing.id, 'delete', { id: existing.id })
-    } else {
-      const attendanceId = crypto.randomUUID()
-      await resolveAttendanceConflict(memberId, selectedSessionId, session.user.id, now)
-      const record: Attendance = {
-        id: attendanceId,
-        member_id: memberId,
-        session_id: selectedSessionId,
-        marked_by: session.user.id,
-        marked_at: now,
+      for (const id of idsToDelete) {
+        await enqueue('attendance', id, 'delete', { id })
       }
+    } else {
+      // resolveAttendanceConflict persists exactly one local row and returns
+      // it; enqueue that same id so local and remote never diverge.
+      const record = await resolveAttendanceConflict(
+        memberId,
+        selectedSessionId,
+        session.user.id,
+        now,
+        crypto.randomUUID()
+      )
       setAttendanceMap((prev) => ({ ...prev, [memberId]: record }))
-      await enqueue('attendance', attendanceId, 'insert', {
-        id: attendanceId,
-        member_id: memberId,
-        session_id: selectedSessionId,
-        marked_by: session.user.id,
-        marked_at: now,
+      await enqueue('attendance', record.id, 'insert', {
+        id: record.id,
+        member_id: record.member_id,
+        session_id: record.session_id,
+        marked_by: record.marked_by,
+        marked_at: record.marked_at,
       })
     }
   }

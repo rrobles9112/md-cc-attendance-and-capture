@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
-import { db, type Member } from './db'
+import { db, type Attendance, type Member } from './db'
 
 export function normalizeName(name: string): string {
   return name
@@ -94,26 +94,38 @@ export async function findDuplicateMembers(
   }
 }
 
+/**
+ * Resolve the local attendance row for a (member, session) pair and return
+ * the single record the caller must enqueue.
+ *
+ * Returning the record matters: previously this created a local row with its
+ * own random id while AttendanceGrid enqueued a *different* id for the same
+ * pair. Dexie then held two rows per pair, un-marking only deleted one of
+ * them (the mark resurrected on reload), and the remote upsert of the second
+ * id hit UNIQUE(member_id, session_id) → 23505 → permanent sync failure.
+ */
 export async function resolveAttendanceConflict(
   memberId: string,
   sessionId: string,
   markedBy: string,
-  markedAt: string
-): Promise<void> {
+  markedAt: string,
+  attendanceId: string = crypto.randomUUID()
+): Promise<Attendance> {
   const existing = await db.attendance
     .where('[member_id+session_id]')
     .equals([memberId, sessionId])
     .first()
 
   if (!existing) {
-    await db.attendance.add({
-      id: crypto.randomUUID(),
+    const record: Attendance = {
+      id: attendanceId,
       member_id: memberId,
       session_id: sessionId,
       marked_by: markedBy,
       marked_at: markedAt,
-    })
-    return
+    }
+    await db.attendance.add(record)
+    return record
   }
 
   if (new Date(markedAt) > new Date(existing.marked_at)) {
@@ -121,7 +133,10 @@ export async function resolveAttendanceConflict(
       marked_by: markedBy,
       marked_at: markedAt,
     })
+    return { ...existing, marked_by: markedBy, marked_at: markedAt }
   }
+
+  return existing
 }
 
 export async function markDuplicateFlag(memberId: string): Promise<void> {
