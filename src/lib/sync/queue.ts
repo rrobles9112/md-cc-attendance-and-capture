@@ -1,6 +1,7 @@
 import { db, type SyncQueueItem, type SyncStatus } from './db'
 import { createClient } from '@/lib/supabase/client'
 import { getHydrationPhase, hasHydratedThisSession } from './hydrate'
+import { formatSyncError, isPermanentSyncError } from './errors'
 
 function uuid(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -11,26 +12,6 @@ function uuid(): string {
 }
 
 const FLUSH_TIMEOUT_MS = 10_000
-
-// Postgres/PostgREST error codes that will never succeed on retry: RLS denial,
-// uniqueness/FK/check violations, and malformed input. Retrying these wastes
-// flush cycles and leaves the real reason hidden behind a generic "pending"
-// status until the 5-attempt cap is finally hit.
-const PERMANENT_POSTGRES_ERROR_CODES = new Set([
-  '42501', // insufficient_privilege — row-level security policy rejected the write
-  '23505', // unique_violation
-  '23503', // foreign_key_violation
-  '23514', // check_violation
-  '22P02', // invalid_text_representation
-])
-
-function isPermanentSyncError(err: unknown): boolean {
-  const code =
-    err && typeof err === 'object' && 'code' in err
-      ? (err as { code?: unknown }).code
-      : undefined
-  return typeof code === 'string' && PERMANENT_POSTGRES_ERROR_CODES.has(code)
-}
 
 function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -95,7 +76,13 @@ export async function flushQueue(): Promise<{ succeeded: number; failed: number 
       switch (item.operation) {
         case 'insert':
           const { error: insertErr } = await withTimeout(
-            table.upsert(item.payload),
+            // attendance has UNIQUE(member_id, session_id): upserting on the
+            // PK alone fails with 23505 when the pair was already marked from
+            // another device under a different id.
+            table.upsert(item.payload, {
+              onConflict:
+                item.table_name === 'attendance' ? 'member_id,session_id' : 'id',
+            }),
             FLUSH_TIMEOUT_MS
           )
           if (insertErr) throw insertErr
@@ -124,7 +111,7 @@ export async function flushQueue(): Promise<{ succeeded: number; failed: number 
       await db.sync_queue.update(item.id, {
         status: permanent || newRetry >= 5 ? 'failed' : ('pending' as SyncStatus),
         retry_count: newRetry,
-        error: err instanceof Error ? err.message : String(err),
+        error: formatSyncError(err),
       })
       failed++
     }
